@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a6b4a">
+  <meta name="description" content="Kasir Sinar Jaya — Sistem Kasir Toko Sembako & Kelontong">
+  <title>Kasir Sinar Jaya</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- PDF Export Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+
+<body>
+  <div id="app">
+
+    <!-- ===== HEADER ===== -->
+    <header class="header">
+      <div class="hcircle" style="width:180px;height:180px;top:-70px;right:-50px"></div>
+      <div class="hcircle" style="width:90px;height:90px;bottom:-30px;left:20px"></div>
+      <div class="header-top">
+        <div class="logo-wrap">
+          <img src="logo.jpg" alt="Sinar Jaya"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div style="display:none;width:100%;height:100%;background:var(--green);color:#fff;
+            font-family:'Playfair Display',serif;font-size:18px;font-weight:700;
+            align-items:center;justify-content:center;border-radius:50%">SJ</div>
+        </div>
+        <div class="header-info">
+          <div class="store-name">Sinar Jaya</div>
+          <div class="store-sub" id="page-subtitle">Sembako &amp; Kelontong</div>
+        </div>
+        <div class="date-chip" id="tgl-chip">—</div>
+      </div>
+    </header>
+
+    <!-- ===== PAGE CONTENT ===== -->
+    <main id="page-content" class="page-content"></main>
+
+    <!-- ===== BOTTOM NAVIGATION ===== -->
+    <nav class="bottom-nav">
+
+      <button class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <span>Dashboard</span>
+      </button>
+
+      <button class="nav-item" data-page="master-barang" onclick="navigateTo('master-barang')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+        <span>Master</span>
+      </button>
+
+      <button class="nav-item" data-page="transaksi" onclick="navigateTo('transaksi')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        <span>Transaksi</span>
+      </button>
+
+      <button class="nav-item" data-page="laporan" onclick="navigateTo('laporan')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6"  y1="20" x2="6"  y2="14"/>
+        </svg>
+        <span>Laporan</span>
+      </button>
+
+    </nav>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- Supabase Config (edit env.js untuk mengisi URL & Key) -->
+  <script src="env.js"></script>
+
+  <!-- App SPA Router (ES Module) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
