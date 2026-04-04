@@ -1,6 +1,6 @@
 // pages/master-barang.js
-import { db, isConfigured } from './supabase.js';
-import { fmt, showToast, escHtml, escAttr } from './utils.js';
+import { db, isConfigured } from '../supabase.js';
+import { fmt, showToast, escHtml, escAttr } from '../utils.js';
 
 let _container = null;
 let _editMode = false;

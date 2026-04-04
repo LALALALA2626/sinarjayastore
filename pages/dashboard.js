@@ -1,6 +1,6 @@
 // pages/dashboard.js
-import { db, isConfigured } from './supabase.js';
-import { fmt, today, fmtDate } from './utils.js';
+import { db, isConfigured } from '../supabase.js';
+import { fmt, today, fmtDate } from '../utils.js';
 
 export async function renderDashboard(container) {
   if (!isConfigured) {

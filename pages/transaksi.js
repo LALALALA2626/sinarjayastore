@@ -1,6 +1,6 @@
 // pages/transaksi.js
-import { db, isConfigured } from './supabase.js';
-import { fmt, today, showToast } from './utils.js';
+import { db, isConfigured } from '../supabase.js';
+import { fmt, today, showToast } from '../utils.js';
 
 let _barangList = [];  // cache dari ms_barang
 let _items = [];  // item keranjang saat ini

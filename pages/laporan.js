@@ -1,6 +1,6 @@
 // pages/laporan.js
-import { db, isConfigured } from './supabase.js';
-import { fmt, fmtDate, fmtDateShort, showToast, escHtml, escAttr } from './utils.js';
+import { db, isConfigured } from '../supabase.js';
+import { fmt, fmtDate, fmtDateShort, showToast, escHtml, escAttr } from '../utils.js';
 
 let _reportType = 'rekap'; // 'rekap' | 'detail'
 let _lastResult = [];      // untuk PDF
