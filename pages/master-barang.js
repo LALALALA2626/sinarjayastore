@@ -1,13 +1,13 @@
 // pages/master-barang.js
-import { db, isConfigured } from '../supabase.js';
-import { fmt, showToast }   from '../utils.js';
+import { db, isConfigured } from './supabase.js';
+import { fmt, showToast, escHtml, escAttr } from './utils.js';
 
 let _container = null;
-let _editMode  = false;
+let _editMode = false;
 
 export async function renderMasterBarang(container) {
   _container = container;
-  _editMode  = false;
+  _editMode = false;
 
   if (!isConfigured) {
     container.innerHTML = `
@@ -132,8 +132,8 @@ async function loadTable() {
 /* ===== HANDLE SAVE (Tambah / Update) ===== */
 async function handleSave(e) {
   e.preventDefault();
-  const kode  = document.getElementById('mb-kode').value.trim().toUpperCase();
-  const nama  = document.getElementById('mb-nama').value.trim();
+  const kode = document.getElementById('mb-kode').value.trim().toUpperCase();
+  const nama = document.getElementById('mb-nama').value.trim();
   const harga = parseFloat(document.getElementById('mb-harga').value) || 0;
 
   if (!kode || !nama || harga <= 0) {
@@ -188,7 +188,7 @@ window.MB = {
   cancelEdit() {
     _editMode = false;
     const formCard = document.getElementById('mb-form-card');
-    const newForm  = document.createElement('div');
+    const newForm = document.createElement('div');
     newForm.innerHTML = getFormHTML(false, {});
     formCard.replaceWith(newForm.firstElementChild);
     document.getElementById('mb-form').addEventListener('submit', handleSave);
@@ -204,5 +204,4 @@ window.MB = {
 };
 
 /* ===== HELPERS ===== */
-function escHtml(s)  { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s)  { return String(s).replace(/'/g,"\\'"); }
+// escHtml and escAttr imported from utils.js

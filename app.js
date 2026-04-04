@@ -1,21 +1,24 @@
 // app.js — SPA Router & Navigation
-import { renderDashboard }    from './pages/dashboard.js';
+import { renderDashboard } from './pages/dashboard.js';
+import { renderKasir } from './pages/kasir.js';
 import { renderMasterBarang } from './pages/master-barang.js';
-import { renderTransaksi }    from './pages/transaksi.js';
-import { renderLaporan }      from './pages/laporan.js';
+import { renderTransaksi } from './pages/transaksi.js';
+import { renderLaporan } from './pages/laporan.js';
 
 const ROUTES = {
-  'dashboard':    renderDashboard,
+  'dashboard': renderDashboard,
+  'kasir': renderKasir,
   'master-barang': renderMasterBarang,
-  'transaksi':    renderTransaksi,
-  'laporan':      renderLaporan,
+  'transaksi': renderTransaksi,
+  'laporan': renderLaporan,
 };
 
 const PAGE_LABELS = {
-  'dashboard':     'Sembako & Kelontong',
+  'dashboard': 'Sembako & Kelontong',
+  'kasir': 'Kasir — Bon Cepat',
   'master-barang': 'Master Barang',
-  'transaksi':     'Transaksi Penjualan',
-  'laporan':       'Laporan Penjualan',
+  'transaksi': 'Transaksi Penjualan',
+  'laporan': 'Laporan Penjualan',
 };
 
 function getPage() {
@@ -45,26 +48,34 @@ async function navigate() {
   try {
     await render(content);
   } catch (err) {
-    console.error(err);
+    console.error('[SPA Error]', err);
     content.innerHTML = `
       <div class="card" style="margin-top:16px">
         <div class="empty">
           <div class="empty-ico">⚠️</div>
-          <div><b>Terjadi Kesalahan</b><br>
-          <span style="font-size:12px;color:var(--muted)">${err.message}</span></div>
+          <div>
+            <b>Terjadi Kesalahan</b><br>
+            <span style="font-size:12px;color:var(--muted)">${err.message}</span>
+          </div>
         </div>
       </div>`;
   }
 }
 
-// Global navigate function (called from nav onclick)
+// Global navigate — dipanggil dari onclick di nav HTML
 window.navigateTo = (page) => { window.location.hash = '#' + page; };
 
-// Init date chip
+// Init date chip di header
 const d = new Date();
 const chip = document.getElementById('tgl-chip');
-if (chip) chip.textContent = d.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+if (chip) {
+  chip.textContent = d.toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'short', year: 'numeric'
+  });
+}
 
-// Route listener
+// Listen hash change untuk routing
 window.addEventListener('hashchange', navigate);
+
+// Initial load
 navigate();

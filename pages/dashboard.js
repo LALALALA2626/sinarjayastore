@@ -1,6 +1,6 @@
 // pages/dashboard.js
-import { db, isConfigured } from '../supabase.js';
-import { fmt, today, fmtDate } from '../utils.js';
+import { db, isConfigured } from './supabase.js';
+import { fmt, today, fmtDate } from './utils.js';
 
 export async function renderDashboard(container) {
   if (!isConfigured) {
@@ -23,8 +23,8 @@ export async function renderDashboard(container) {
     if (error) throw error;
 
     const totalHarga = penjualan.reduce((s, r) => s + Number(r.total_harga), 0);
-    const totalQty   = penjualan.reduce((s, r) => s + Number(r.total_qty), 0);
-    const jmlFaktur  = penjualan.length;
+    const totalQty = penjualan.reduce((s, r) => s + Number(r.total_qty), 0);
+    const jmlFaktur = penjualan.length;
 
     container.innerHTML = `
       <div class="gap-12">

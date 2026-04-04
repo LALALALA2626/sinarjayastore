@@ -1,6 +1,6 @@
 // pages/laporan.js
-import { db, isConfigured } from '../supabase.js';
-import { fmt, fmtDate, fmtDateShort, showToast } from '../utils.js';
+import { db, isConfigured } from './supabase.js';
+import { fmt, fmtDate, fmtDateShort, showToast, escHtml, escAttr } from './utils.js';
 
 let _reportType = 'rekap'; // 'rekap' | 'detail'
 let _lastResult = [];      // untuk PDF
@@ -43,8 +43,8 @@ export async function renderLaporan(container) {
           <select id="lap-barang">
             <option value="">— Semua Barang —</option>
             ${(barangList || []).map(b =>
-              `<option value="${escAttr(b.kode_barang)}">${escHtml(b.nama_barang)}</option>`
-            ).join('')}
+    `<option value="${escAttr(b.kode_barang)}">${escHtml(b.nama_barang)}</option>`
+  ).join('')}
           </select>
         </div>
 
@@ -77,12 +77,12 @@ window.LAP = {
   },
 
   async tampilkan() {
-    const dari   = document.getElementById('lap-dari').value;
+    const dari = document.getElementById('lap-dari').value;
     const sampai = document.getElementById('lap-sampai').value;
-    const kode   = document.getElementById('lap-barang').value;
+    const kode = document.getElementById('lap-barang').value;
 
     if (!dari || !sampai) { showToast('Isi range tanggal terlebih dahulu', 'error'); return; }
-    if (dari > sampai)    { showToast('Tanggal dari tidak boleh lebih besar dari sampai', 'error'); return; }
+    if (dari > sampai) { showToast('Tanggal dari tidak boleh lebih besar dari sampai', 'error'); return; }
 
     const result = document.getElementById('lap-result');
     result.innerHTML = '<div class="page-loading"><div class="spinner"></div></div>';
@@ -136,16 +136,16 @@ window.LAP = {
     if (!el) { showToast('Tampilkan laporan terlebih dahulu', 'warning'); return; }
     if (typeof html2pdf === 'undefined') { showToast('Library PDF belum siap', 'error'); return; }
 
-    const dari   = document.getElementById('lap-dari').value;
+    const dari = document.getElementById('lap-dari').value;
     const sampai = document.getElementById('lap-sampai').value;
-    const fname  = `Laporan-SinarJaya-${dari}-sd-${sampai}.pdf`;
+    const fname = `Laporan-SinarJaya-${dari}-sd-${sampai}.pdf`;
 
     html2pdf().set({
-      margin:      [10, 10],
-      filename:    fname,
-      image:       { type: 'jpeg', quality: 0.97 },
+      margin: [10, 10],
+      filename: fname,
+      image: { type: 'jpeg', quality: 0.97 },
       html2canvas: { scale: 2, useCORS: true },
-      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
     }).from(el).save();
 
     showToast('Mengunduh PDF...', 'success');
@@ -161,13 +161,13 @@ function renderRekap(container, data, dari, sampai) {
     if (!map[key]) {
       map[key] = { kode: row.kode_barang, nama: row.nama_barang, totalQty: 0, totalHarga: 0 };
     }
-    map[key].totalQty   += Number(row.qty);
+    map[key].totalQty += Number(row.qty);
     map[key].totalHarga += Number(row.subtotal);
   });
 
-  const rows    = Object.values(map).sort((a,b) => b.totalHarga - a.totalHarga);
-  const sumHarga = rows.reduce((s,r) => s + r.totalHarga, 0);
-  const sumQty   = rows.reduce((s,r) => s + r.totalQty, 0);
+  const rows = Object.values(map).sort((a, b) => b.totalHarga - a.totalHarga);
+  const sumHarga = rows.reduce((s, r) => s + r.totalHarga, 0);
+  const sumQty = rows.reduce((s, r) => s + r.totalQty, 0);
 
   container.innerHTML = `
     <div class="card" style="padding:0">
@@ -190,7 +190,7 @@ function renderRekap(container, data, dari, sampai) {
             <tbody>
               ${rows.map((r, i) => `
                 <tr>
-                  <td class="c" style="color:var(--muted);font-size:12px">${i+1}</td>
+                  <td class="c" style="color:var(--muted);font-size:12px">${i + 1}</td>
                   <td>
                     <div style="font-weight:600">${escHtml(r.nama)}</div>
                     ${r.kode ? `<div style="font-size:11px;color:var(--muted);font-family:monospace">${escHtml(r.kode)}</div>` : ''}
@@ -217,8 +217,8 @@ function renderRekap(container, data, dari, sampai) {
 
 /* ===== RENDER DETAIL ===== */
 function renderDetail(container, data, dari, sampai) {
-  const sumHarga = data.reduce((s,r) => s + Number(r.subtotal), 0);
-  const sumQty   = data.reduce((s,r) => s + Number(r.qty), 0);
+  const sumHarga = data.reduce((s, r) => s + Number(r.subtotal), 0);
+  const sumQty = data.reduce((s, r) => s + Number(r.qty), 0);
 
   container.innerHTML = `
     <div class="card" style="padding:0">
@@ -274,5 +274,4 @@ function renderDetail(container, data, dari, sampai) {
 }
 
 /* ===== HELPERS ===== */
-function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s||'').replace(/'/g,"\\'"); }
+// escHtml and escAttr imported from utils.js

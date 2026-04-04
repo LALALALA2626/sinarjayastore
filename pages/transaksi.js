@@ -1,13 +1,13 @@
 // pages/transaksi.js
-import { db, isConfigured } from '../supabase.js';
-import { fmt, today, showToast } from '../utils.js';
+import { db, isConfigured } from './supabase.js';
+import { fmt, today, showToast } from './utils.js';
 
 let _barangList = [];  // cache dari ms_barang
-let _items      = [];  // item keranjang saat ini
-let _itemId     = 0;
+let _items = [];  // item keranjang saat ini
+let _itemId = 0;
 
 export async function renderTransaksi(container) {
-  _items  = [];
+  _items = [];
   _itemId = 0;
 
   if (!isConfigured) {
@@ -82,16 +82,20 @@ function removeItem(id) {
 }
 
 window.TRX = {
+  closeModal() {
+    document.getElementById('modal-container').innerHTML = '';
+    resetForm();
+  },
   removeItem,
   onBarangChange(id, kode) {
-    const item   = _items.find(i => i.id === id);
+    const item = _items.find(i => i.id === id);
     const barang = _barangList.find(b => b.kode_barang === kode);
     if (!item) return;
     if (barang) {
-      item.kode_barang  = barang.kode_barang;
-      item.nama_barang  = barang.nama_barang;
+      item.kode_barang = barang.kode_barang;
+      item.nama_barang = barang.nama_barang;
       item.harga_satuan = Number(barang.harga_satuan);
-      item.subtotal     = item.qty * item.harga_satuan;
+      item.subtotal = item.qty * item.harga_satuan;
     } else {
       item.kode_barang = item.nama_barang = '';
       item.harga_satuan = item.subtotal = 0;
@@ -101,7 +105,7 @@ window.TRX = {
   onQtyChange(id, val) {
     const item = _items.find(i => i.id === id);
     if (!item) return;
-    item.qty      = parseFloat(val) || 0;
+    item.qty = parseFloat(val) || 0;
     item.subtotal = item.qty * item.harga_satuan;
     renderSummary();
     // update subtotal display hanya
@@ -112,8 +116,8 @@ window.TRX = {
 
 /* ===== RENDER ITEMS ===== */
 function renderItems() {
-  const el  = document.getElementById('trx-items-list');
-  const sw  = document.getElementById('trx-summary-wrap');
+  const el = document.getElementById('trx-items-list');
+  const sw = document.getElementById('trx-summary-wrap');
   if (!el) return;
 
   if (_items.length === 0) {
@@ -137,7 +141,7 @@ function renderItems() {
           onchange="TRX.onBarangChange(${it.id}, this.value)">
           <option value="">— Pilih Barang —</option>
           ${opts.replace(`value="${escAttr(it.kode_barang)}"`,
-            `value="${escAttr(it.kode_barang)}" selected`)}
+    `value="${escAttr(it.kode_barang)}" selected`)}
         </select>
         ${it.kode_barang ? `<div class="item-sub">Harga satuan: <b>${fmt(it.harga_satuan)}</b></div>` : ''}
       </div>
@@ -159,7 +163,7 @@ function renderItems() {
 /* ===== RENDER SUMMARY ===== */
 function renderSummary() {
   const rowsEl = document.getElementById('trx-sum-rows');
-  const valEl  = document.getElementById('trx-sum-val');
+  const valEl = document.getElementById('trx-sum-val');
   if (!rowsEl) return;
 
   const valid = _items.filter(i => i.kode_barang);
@@ -175,8 +179,8 @@ function renderSummary() {
 
 /* ===== GENERATE NO FAKTUR ===== */
 async function generateNoFaktur() {
-  const todayStr  = today();                       // YYYY-MM-DD
-  const todayKey  = todayStr.replace(/-/g, '');    // YYYYMMDD
+  const todayStr = today();                       // YYYY-MM-DD
+  const todayKey = todayStr.replace(/-/g, '');    // YYYYMMDD
 
   // Baca tanggal sistem di tm_module
   const { data: tglData } = await db
@@ -188,7 +192,7 @@ async function generateNoFaktur() {
     // Hari baru / close toko → reset counter
     counter = 1;
     await db.from('tm_module').upsert([
-      { id: 'tanggal_sistem', value: todayStr,       updated_at: new Date().toISOString() },
+      { id: 'tanggal_sistem', value: todayStr, updated_at: new Date().toISOString() },
       { id: 'faktur_counter', value: String(counter), updated_at: new Date().toISOString() },
     ]);
   } else {
@@ -217,29 +221,29 @@ async function simpanPenjualan() {
   saveBtn.textContent = '⏳ Menyimpan...';
 
   try {
-    const noFaktur  = await generateNoFaktur();
+    const noFaktur = await generateNoFaktur();
     const totalHarga = valid.reduce((s, i) => s + i.subtotal, 0);
-    const totalQty   = valid.reduce((s, i) => s + i.qty, 0);
-    const todayStr   = today();
+    const totalQty = valid.reduce((s, i) => s + i.qty, 0);
+    const todayStr = today();
 
     // Simpan header
     const { error: e1 } = await db.from('tr_penjualan').insert({
-      no_faktur:  noFaktur,
-      tanggal:    todayStr,
+      no_faktur: noFaktur,
+      tanggal: todayStr,
       total_harga: totalHarga,
-      total_qty:   totalQty,
+      total_qty: totalQty,
     });
     if (e1) throw e1;
 
     // Simpan detail
     const { error: e2 } = await db.from('tr_penjualan_detail').insert(
       valid.map(i => ({
-        no_faktur:    noFaktur,
-        kode_barang:  i.kode_barang,
-        nama_barang:  i.nama_barang,
-        qty:          i.qty,
+        no_faktur: noFaktur,
+        kode_barang: i.kode_barang,
+        nama_barang: i.nama_barang,
+        qty: i.qty,
         harga_satuan: i.harga_satuan,
-        subtotal:     i.subtotal,
+        subtotal: i.subtotal,
       }))
     );
     if (e2) throw e2;
@@ -286,19 +290,15 @@ function showSuccessModal(noFaktur, items, total) {
   document.getElementById('trx-modal').addEventListener('click', () => TRX.closeModal());
 }
 
-window.TRX.closeModal = function() {
-  document.getElementById('modal-container').innerHTML = '';
-  resetForm();
-};
 
 /* ===== RESET ===== */
 function resetForm() {
-  _items  = [];
+  _items = [];
   _itemId = 0;
   renderItems();
   renderSummary();
 }
 
 /* ===== HELPERS ===== */
-function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function escAttr(s) { return String(s).replace(/'/g, "\\'"); }
