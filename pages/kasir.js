@@ -1,5 +1,6 @@
 // pages/kasir.js — Kasir Manual (Bon Cepat)
-import { fmt, fmtNum, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal } from '../utils.js';
+import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal } from '../utils.js';
+import { db, isConfigured } from '../supabase.js';
 
 const SATUANS = ['pcs', 'kg', 'gr', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
 
@@ -8,18 +9,31 @@ let _itemId = 0;
 let _metode = 'Tunai';
 let _bleChar = null;
 
+/* ===== GENERATE KODE BARANG ===== */
+function _generateKode(nama) {
+  const clean = nama.toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .map(w => w.substring(0, 4))
+    .join('')
+    .substring(0, 10);
+  const rand = Math.floor(Math.random() * 900 + 100);
+  return clean + '-' + rand;
+}
+
 /* ===== ENTRY POINT ===== */
 export async function renderKasir(container) {
-    _items = [];
-    _itemId = 0;
-    _metode = 'Tunai';
+  _items = [];
+  _itemId = 0;
+  _metode = 'Tunai';
 
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-    const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
-    const revHari = bonHari.reduce((s, b) => s + b.total, 0);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+  const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
+  const revHari = bonHari.reduce((s, b) => s + b.total, 0);
 
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="gap-12">
 
       <div class="stats-grid" style="margin-bottom:0">
@@ -109,37 +123,49 @@ export async function renderKasir(container) {
       <button class="btn btn-outline"  onclick="KASIR.reset()">🔄 Bersihkan &amp; Mulai Baru</button>
 
       <div>
-        <div class="sec-lbl">Riwayat Bon Hari Ini</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="sec-lbl" style="margin:0">Riwayat Bon</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <input id="k-search" type="text" placeholder="Cari nama pelanggan..."
+            oninput="KASIR.filterRiwayat()"
+            style="flex:1;min-width:140px;padding:9px 12px;border:1.5px solid var(--border);
+            border-radius:10px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;
+            background:#fafafa;color:var(--text)">
+          <input id="k-filter-tgl" type="date" onchange="KASIR.filterRiwayat()"
+            style="padding:9px 10px;border:1.5px solid var(--border);border-radius:10px;
+            font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;background:#fafafa;color:var(--text)">
+        </div>
         <div id="k-riwayat"></div>
       </div>
 
     </div>`;
 
-    _renderItems();
-    _renderRiwayat();
+  _renderItems();
+  _renderRiwayat();
 }
 
 /* ===== RENDER ITEMS ===== */
 function _renderItems() {
-    const el = document.getElementById('k-items-list');
-    const emp = document.getElementById('k-empty');
-    const sw = document.getElementById('k-summary-wrap');
-    const cols = document.getElementById('k-col-labels');
-    if (!el) return;
+  const el = document.getElementById('k-items-list');
+  const emp = document.getElementById('k-empty');
+  const sw = document.getElementById('k-summary-wrap');
+  const cols = document.getElementById('k-col-labels');
+  if (!el) return;
 
-    if (!_items.length) {
-        el.innerHTML = '';
-        if (emp) emp.style.display = 'block';
-        if (sw) sw.style.display = 'none';
-        if (cols) cols.style.display = 'none';
-        return;
-    }
+  if (!_items.length) {
+    el.innerHTML = '';
+    if (emp) emp.style.display = 'block';
+    if (sw) sw.style.display = 'none';
+    if (cols) cols.style.display = 'none';
+    return;
+  }
 
-    if (emp) emp.style.display = 'none';
-    if (sw) sw.style.display = 'block';
-    if (cols) cols.style.display = 'grid';
+  if (emp) emp.style.display = 'none';
+  if (sw) sw.style.display = 'block';
+  if (cols) cols.style.display = 'grid';
 
-    el.innerHTML = _items.map(it => `
+  el.innerHTML = _items.map(it => `
     <div style="display:grid;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6">
       <input class="ii k-nama-inp" placeholder="Nama barang"
         value="${_escHtml(it.nama)}"
@@ -160,17 +186,17 @@ function _renderItems() {
         onclick="KASIR.removeItem(${it.id})">✕</button>
     </div>`).join('');
 
-    _renderSummary();
+  _renderSummary();
 }
 
 /* ===== RENDER SUMMARY ===== */
 function _renderSummary() {
-    const rowsEl = document.getElementById('k-sum-rows');
-    const valEl = document.getElementById('k-sum-val');
-    if (!rowsEl) return;
+  const rowsEl = document.getElementById('k-sum-rows');
+  const valEl = document.getElementById('k-sum-val');
+  if (!rowsEl) return;
 
-    const valid = _items.filter(i => i.nama || i.harga);
-    rowsEl.innerHTML = valid.map(i => `
+  const valid = _items.filter(i => i.nama || i.harga);
+  rowsEl.innerHTML = valid.map(i => `
     <div class="sum-row">
       <span>${_escHtml(i.nama || '—')}
         <span style="opacity:.7;font-size:12px"> ${i.qty} ${i.satuan}</span>
@@ -178,72 +204,44 @@ function _renderSummary() {
       <span style="font-weight:700">${fmt(i.harga * (i.qty || 1))}</span>
     </div>`).join('');
 
-    const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
-    if (valEl) valEl.textContent = fmt(total);
+  const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
+  if (valEl) valEl.textContent = fmt(total);
 }
 
 /* ===== RENDER RIWAYAT ===== */
 function _renderRiwayat() {
-    const el = document.getElementById('k-riwayat');
-    if (!el) return;
+  const tglEl = document.getElementById('k-filter-tgl');
+  if (tglEl && !tglEl.value) {
+    tglEl.value = new Date().toISOString().slice(0, 10);
+  }
+  KASIR.filterRiwayat();
 
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-    const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey).reverse();
-
-    if (!bonHari.length) {
-        el.innerHTML = `
-      <div class="empty" style="padding:24px 0">
-        <div class="empty-ico">📭</div>
-        <div>Belum ada bon hari ini.</div>
-      </div>`;
-        return;
-    }
-
-    el.innerHTML = bonHari.map(b => `
-    <div class="card" style="margin-bottom:8px;padding:14px;cursor:pointer"
-      onclick="KASIR.lihatBon(${b.id})">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
-        <div>
-          <div style="font-size:15px;font-weight:700;color:var(--text)">${_escHtml(b.namaPelanggan)}</div>
-          <div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:1px">${b.noFaktur}</div>
-        </div>
-        <div style="font-size:17px;font-weight:700;color:var(--green)">${fmt(b.total)}</div>
-      </div>
-      <div style="font-size:12px;color:var(--muted)">
-        ${new Date(b.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-        &bull; ${b.items.map(i => _escHtml(i.nama)).join(', ').substring(0, 50)}
-      </div>
-      <div style="margin-top:6px">
-        <span class="badge ${b.metode === 'Tunai' ? 'badge-green' : b.metode === 'Transfer' ? 'badge-amber' : 'badge-red'}">
-          ${b.metode}
-        </span>
-      </div>
-    </div>`).join('');
-
-    const revTotal = bonHari.reduce((s, b) => s + b.total, 0);
-    const cntEl = document.getElementById('k-bon-count');
-    const revEl = document.getElementById('k-rev');
-    if (cntEl) cntEl.textContent = bonHari.length + ' bon';
-    if (revEl) revEl.textContent = fmt(revTotal);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+  const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
+  const revTotal = bonHari.reduce((s, b) => s + b.total, 0);
+  const cntEl = document.getElementById('k-bon-count');
+  const revEl = document.getElementById('k-rev');
+  if (cntEl) cntEl.textContent = bonHari.length + ' bon';
+  if (revEl) revEl.textContent = fmt(revTotal);
 }
 
 /* ===== SHOW STRUK MODAL ===== */
 function _showStruk(bon, isView = false) {
-    const struktxt = buildStrukText({
-        noFaktur: bon.noFaktur,
-        tanggal: fmtDateTime(bon.waktu),
-        namaPelanggan: bon.namaPelanggan,
-        catatan: bon.catatan,
-        items: bon.items,
-        total: bon.total,
-        metode: bon.metode,
-    });
+  const struktxt = buildStrukText({
+    noFaktur: bon.noFaktur,
+    tanggal: fmtDateTime(bon.waktu),
+    namaPelanggan: bon.namaPelanggan,
+    catatan: bon.catatan,
+    items: bon.items,
+    total: bon.total,
+    metode: bon.metode,
+  });
 
-    const safeTxt = struktxt.replace(/`/g, "'");
-    const mc = document.getElementById('modal-container');
+  const safeTxt = struktxt.replace(/`/g, "'");
+  const mc = document.getElementById('modal-container');
 
-    mc.innerHTML = `
+  mc.innerHTML = `
     <div class="modal-backdrop" id="k-modal" onclick="KASIR._closeModal()">
       <div class="modal-sheet" onclick="event.stopPropagation()">
         <div class="drag-bar"></div>
@@ -267,165 +265,381 @@ function _showStruk(bon, isView = false) {
     </div>`;
 }
 
+/* ===== SYNC BARANG KE MASTER ===== */
+async function _syncBarangKeMaster(items) {
+  if (!isConfigured || !db) return;
+  for (const item of items) {
+    if (!item.nama) continue;
+    const { data: existing } = await db
+      .from('ms_barang')
+      .select('kode_barang')
+      .ilike('nama_barang', item.nama.trim())
+      .limit(1);
+    if (!existing || existing.length === 0) {
+      const kode = _generateKode(item.nama);
+      await db.from('ms_barang').insert({
+        kode_barang: kode,
+        nama_barang: item.nama.trim(),
+        harga_satuan: 0,
+      });
+    }
+  }
+}
+
 /* ===== GLOBAL KASIR OBJECT ===== */
 window.KASIR = {
-    addItem() {
-        _items.push({ id: ++_itemId, nama: '', harga: 0, qty: 1, satuan: 'pcs' });
-        _renderItems();
-        setTimeout(() => {
-            const inputs = document.querySelectorAll('.k-nama-inp');
-            if (inputs.length) inputs[inputs.length - 1].focus();
-        }, 60);
-    },
+  addItem() {
+    _items.push({ id: ++_itemId, nama: '', harga: 0, qty: 1, satuan: 'pcs' });
+    _renderItems();
+    setTimeout(() => {
+      const inputs = document.querySelectorAll('.k-nama-inp');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }, 60);
+  },
 
-    removeItem(id) {
-        _items = _items.filter(i => i.id !== id);
-        _renderItems();
-    },
+  removeItem(id) {
+    _items = _items.filter(i => i.id !== id);
+    _renderItems();
+  },
 
-    updItem(id, field, val) {
-        const item = _items.find(i => i.id === id);
-        if (!item) return;
-        if (field === 'nama' || field === 'satuan') item[field] = val;
-        else item[field] = parseFloat(val) || 0;
-        _renderSummary();
-    },
+  updItem(id, field, val) {
+    const item = _items.find(i => i.id === id);
+    if (!item) return;
+    if (field === 'nama' || field === 'satuan') item[field] = val;
+    else item[field] = parseFloat(val) || 0;
+    _renderSummary();
+  },
 
-    setSatuan(s) {
-        if (!_items.length) {
-            _items.push({ id: ++_itemId, nama: '', harga: 0, qty: 1, satuan: s });
-            _renderItems();
-            setTimeout(() => {
-                const inputs = document.querySelectorAll('.k-nama-inp');
-                if (inputs.length) inputs[inputs.length - 1].focus();
-            }, 60);
-            return;
-        }
-        _items[_items.length - 1].satuan = s;
-        _renderItems();
-    },
+  setSatuan(s) {
+    if (!_items.length) {
+      _items.push({ id: ++_itemId, nama: '', harga: 0, qty: 1, satuan: s });
+      _renderItems();
+      setTimeout(() => {
+        const inputs = document.querySelectorAll('.k-nama-inp');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+      }, 60);
+      return;
+    }
+    _items[_items.length - 1].satuan = s;
+    _renderItems();
+  },
 
-    setMetode(m) {
-        _metode = m;
-        ['Tunai', 'Transfer', 'Hutang'].forEach(x => {
-            const el = document.getElementById('km-' + x);
-            if (el) el.className = 'k-metode' + (x === m ? ' active' : '');
+  setMetode(m) {
+    _metode = m;
+    ['Tunai', 'Transfer', 'Hutang'].forEach(x => {
+      const el = document.getElementById('km-' + x);
+      if (el) el.className = 'k-metode' + (x === m ? ' active' : '');
+    });
+  },
+
+  filterRiwayat() {
+    const q = (document.getElementById('k-search')?.value || '').toLowerCase();
+    const tgl = document.getElementById('k-filter-tgl')?.value || '';
+
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    let filtered = [...allBon].reverse();
+
+    if (q) filtered = filtered.filter(b => b.namaPelanggan.toLowerCase().includes(q));
+    if (tgl) filtered = filtered.filter(b => b.waktu.slice(0, 10) === tgl);
+
+    const el = document.getElementById('k-riwayat');
+    if (!el) return;
+
+    if (!filtered.length) {
+      el.innerHTML = `
+        <div class="empty" style="padding:24px 0">
+          <div class="empty-ico">📭</div>
+          <div>Tidak ada bon ditemukan.</div>
+        </div>`;
+      return;
+    }
+
+    el.innerHTML = filtered.map(b => `
+      <div class="card" style="margin-bottom:8px;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">${_escHtml(b.namaPelanggan)}</div>
+            <div style="font-family:monospace;font-size:11px;color:var(--muted);margin-top:1px">${b.noFaktur}</div>
+          </div>
+          <div style="font-size:17px;font-weight:700;color:var(--green)">${fmt(b.total)}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          ${new Date(b.waktu).toLocaleDateString('id-ID')}
+          ${new Date(b.waktu).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+          &bull; ${b.items.map(i => _escHtml(i.nama)).join(', ').substring(0, 50)}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="badge ${b.metode === 'Tunai' ? 'badge-green' : b.metode === 'Transfer' ? 'badge-amber' : 'badge-red'}">
+            ${b.metode}
+          </span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="KASIR.lihatBon(${b.id})">🧾</button>
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="KASIR.editBon(${b.id})">✏️</button>
+            <button class="btn btn-danger btn-sm btn-icon" onclick="KASIR.hapusBon(${b.id})">🗑️</button>
+          </div>
+        </div>
+      </div>`).join('');
+  },
+
+  async buatBon() {
+    const nama = (document.getElementById('k-nama')?.value || '').trim();
+    const catatan = (document.getElementById('k-catatan')?.value || '').trim();
+
+    if (!nama) {
+      showToast('Isi nama pelanggan dulu!', 'error');
+      document.getElementById('k-nama')?.focus();
+      return;
+    }
+    if (!_items.length) {
+      showToast('Belum ada barang yang ditambahkan.', 'error');
+      return;
+    }
+    const valid = _items.filter(i => i.nama);
+    if (!valid.length) {
+      showToast('Isi nama barang terlebih dahulu.', 'error');
+      return;
+    }
+
+    const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
+    const totalQty = valid.reduce((s, i) => s + (i.qty || 1), 0);
+    const noFaktur = generateNoFakturLocal();
+    const waktu = new Date().toISOString();
+    const tanggal = waktu.slice(0, 10);
+
+    const bon = {
+      id: Date.now(), noFaktur, waktu,
+      namaPelanggan: nama, catatan,
+      items: valid, total, metode: _metode
+    };
+
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    allBon.push(bon);
+    localStorage.setItem('sj_bon', JSON.stringify(allBon));
+
+    if (isConfigured && db) {
+      try {
+        const { error: e1 } = await db.from('tr_penjualan').insert({
+          no_faktur: noFaktur,
+          tanggal: tanggal,
+          total_harga: total,
+          total_qty: totalQty,
         });
-    },
+        if (e1) throw e1;
 
-    buatBon() {
-        const nama = (document.getElementById('k-nama')?.value || '').trim();
-        const catatan = (document.getElementById('k-catatan')?.value || '').trim();
+        const { error: e2 } = await db.from('tr_penjualan_detail').insert(
+          valid.map(i => ({
+            no_faktur: noFaktur,
+            kode_barang: i.kode_barang || null,
+            nama_barang: i.nama,
+            qty: i.qty || 1,
+            harga_satuan: i.harga,
+            subtotal: i.harga * (i.qty || 1),
+          }))
+        );
+        if (e2) throw e2;
 
-        if (!nama) {
-            showToast('Isi nama pelanggan dulu!', 'error');
-            document.getElementById('k-nama')?.focus();
-            return;
+        // Auto-catat hutang jika metode Hutang
+        if (_metode === 'Hutang') {
+          await db.from('tr_hutang').insert({
+            no_faktur: noFaktur,
+            nama_pelanggan: nama,
+            jumlah: total,
+            catatan: catatan || null,
+            tanggal: tanggal,
+            status: 'belum_lunas',
+          });
         }
-        if (!_items.length) {
-            showToast('Belum ada barang yang ditambahkan.', 'error');
-            return;
-        }
-        const valid = _items.filter(i => i.nama);
-        if (!valid.length) {
-            showToast('Isi nama barang terlebih dahulu.', 'error');
-            return;
-        }
 
-        const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
-        const noFaktur = generateNoFakturLocal();
-        const waktu = new Date().toISOString();
+        await _syncBarangKeMaster(valid);
+        showToast('Bon tersimpan & masuk laporan ✅', 'success');
+      } catch (err) {
+        showToast('Bon tersimpan lokal, gagal sync: ' + err.message, 'warning');
+      }
+    }
 
-        const bon = {
-            id: Date.now(), noFaktur, waktu,
-            namaPelanggan: nama, catatan,
-            items: valid, total, metode: _metode
-        };
+    _showStruk(bon);
+    _renderRiwayat();
+  },
 
-        const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-        allBon.push(bon);
-        localStorage.setItem('sj_bon', JSON.stringify(allBon));
+  reset() {
+    _items = [];
+    _itemId = 0;
+    _metode = 'Tunai';
 
-        _showStruk(bon);
-        _renderRiwayat();
-    },
+    const nama = document.getElementById('k-nama');
+    const catatan = document.getElementById('k-catatan');
+    if (nama) nama.value = '';
+    if (catatan) catatan.value = '';
 
-    reset() {
-        _items = [];
-        _itemId = 0;
-        _metode = 'Tunai';
-        const nama = document.getElementById('k-nama');
-        const catatan = document.getElementById('k-catatan');
-        if (nama) nama.value = '';
-        if (catatan) catatan.value = '';
-        this.setMetode('Tunai');
-        _renderItems();
-        const mc = document.getElementById('modal-container');
-        if (mc) mc.innerHTML = '';
-    },
+    this.setMetode('Tunai');
+    _renderItems();
+    _renderSummary();
 
-    lihatBon(id) {
-        const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-        const bon = allBon.find(b => b.id === id);
-        if (bon) _showStruk(bon, true);
-    },
+    const sw = document.getElementById('k-summary-wrap');
+    if (sw) sw.style.display = 'none';
 
-    _closeModal() {
-        const mc = document.getElementById('modal-container');
-        if (mc) mc.innerHTML = '';
-    },
+    const cols = document.getElementById('k-col-labels');
+    if (cols) cols.style.display = 'none';
 
-    async _printBT(text) {
+    const emp = document.getElementById('k-empty');
+    if (emp) emp.style.display = 'block';
+
+    const mc = document.getElementById('modal-container');
+    if (mc) mc.innerHTML = '';
+  },
+
+  lihatBon(id) {
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const bon = allBon.find(b => b.id === id);
+    if (bon) _showStruk(bon, true);
+  },
+
+  editBon(id) {
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const bon = allBon.find(b => b.id === id);
+    if (!bon) return;
+
+    const mc = document.getElementById('modal-container');
+    mc.innerHTML = `
+      <div class="modal-backdrop" onclick="KASIR._closeModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+          <div class="drag-bar"></div>
+          <div class="sheet-title">✏️ Edit Bon</div>
+          <div class="field">
+            <label>Ditujukan kepada</label>
+            <input id="edit-nama" type="text" value="${_escHtml(bon.namaPelanggan)}" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>Catatan</label>
+            <input id="edit-catatan" type="text" value="${_escHtml(bon.catatan || '')}" autocomplete="off">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Cara Pembayaran</label>
+            <select id="edit-metode">
+              <option value="Tunai"    ${bon.metode === 'Tunai' ? 'selected' : ''}>Tunai</option>
+              <option value="Transfer" ${bon.metode === 'Transfer' ? 'selected' : ''}>Transfer</option>
+              <option value="Hutang"   ${bon.metode === 'Hutang' ? 'selected' : ''}>Hutang</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <button class="btn btn-outline" style="flex:1" onclick="KASIR._closeModal()">Batal</button>
+            <button class="btn btn-primary" style="flex:2" onclick="KASIR._simpanEditBon(${id})">💾 Simpan</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  async _simpanEditBon(id) {
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const idx = allBon.findIndex(b => b.id === id);
+    if (idx < 0) return;
+
+    const namaBaru = document.getElementById('edit-nama')?.value.trim();
+    const catatanBaru = document.getElementById('edit-catatan')?.value.trim();
+    const metodeBaru = document.getElementById('edit-metode')?.value;
+
+    if (!namaBaru) {
+      showToast('Nama pelanggan tidak boleh kosong', 'error');
+      return;
+    }
+
+    allBon[idx].namaPelanggan = namaBaru;
+    allBon[idx].catatan = catatanBaru;
+    allBon[idx].metode = metodeBaru;
+    localStorage.setItem('sj_bon', JSON.stringify(allBon));
+
+    if (isConfigured && db) {
+      try {
+        await db.from('tr_penjualan')
+          .update({ metode: metodeBaru })
+          .eq('no_faktur', allBon[idx].noFaktur);
+      } catch (err) {
+        console.warn('Gagal update Supabase:', err.message);
+      }
+    }
+
+    showToast('Bon berhasil diupdate ✅', 'success');
+    this._closeModal();
+    _renderRiwayat();
+  },
+
+  async hapusBon(id) {
+    if (!confirm('Hapus bon ini? Data tidak bisa dikembalikan.')) return;
+
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const bon = allBon.find(b => b.id === id);
+    const newList = allBon.filter(b => b.id !== id);
+    localStorage.setItem('sj_bon', JSON.stringify(newList));
+
+    if (isConfigured && db && bon) {
+      try {
+        await db.from('tr_penjualan').delete().eq('no_faktur', bon.noFaktur);
+        await db.from('tr_hutang').delete().eq('no_faktur', bon.noFaktur);
+      } catch (err) {
+        console.warn('Gagal hapus dari Supabase:', err.message);
+      }
+    }
+
+    showToast('Bon berhasil dihapus', 'success');
+    _renderRiwayat();
+  },
+
+  _closeModal() {
+    const mc = document.getElementById('modal-container');
+    if (mc) mc.innerHTML = '';
+  },
+
+  async _printBT(text) {
+    try {
+      if (!_bleChar) {
+        document.getElementById('k-btext').textContent = 'Mencari printer...';
+        const dev = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [
+            '000018f0-0000-1000-8000-00805f9b34fb',
+            'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
+          ]
+        });
+        const srv = await dev.gatt.connect();
+        let chr;
         try {
-            if (!_bleChar) {
-                document.getElementById('k-btext').textContent = 'Mencari printer...';
-                const dev = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: [
-                        '000018f0-0000-1000-8000-00805f9b34fb',
-                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
-                    ]
-                });
-                const srv = await dev.gatt.connect();
-                let chr;
-                try {
-                    const svc = await srv.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-                    chr = await svc.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-                } catch {
-                    const svc = await srv.getPrimaryService('e7810a71-73ae-499d-8c15-faa9aef0c3f2');
-                    chr = await svc.getCharacteristic('bef8d6c9-9c21-4c9e-b632-bd58c1009f9f');
-                }
-                _bleChar = chr;
-            }
-
-            const ESC = String.fromCharCode(27);
-            const GS = String.fromCharCode(29);
-            const full = ESC + '@' + ESC + 'a\x00' + text + '\n\n\n' + GS + 'V\x41\x03';
-            const data = new TextEncoder().encode(full);
-
-            for (let i = 0; i < data.length; i += 200) {
-                await _bleChar.writeValue(data.slice(i, i + 200));
-            }
-
-            const dot = document.getElementById('k-bdot');
-            if (dot) dot.className = 'ble-dot on';
-            const txt = document.getElementById('k-btext');
-            if (txt) txt.textContent = 'Cetak lagi ke printer';
-
-            showToast('Struk berhasil dicetak!', 'success');
-        } catch (e) {
-            if (e.name === 'NotFoundError' || e.name === 'NotSupportedError') return;
-            _bleChar = null;
-            showToast('Gagal cetak: ' + e.message, 'error');
+          const svc = await srv.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+          chr = await svc.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        } catch {
+          const svc = await srv.getPrimaryService('e7810a71-73ae-499d-8c15-faa9aef0c3f2');
+          chr = await svc.getCharacteristic('bef8d6c9-9c21-4c9e-b632-bd58c1009f9f');
         }
-    },
+        _bleChar = chr;
+      }
+
+      const ESC = String.fromCharCode(27);
+      const GS = String.fromCharCode(29);
+      const full = ESC + '@' + ESC + 'a\x00' + text + '\n\n\n' + GS + 'V\x41\x03';
+      const data = new TextEncoder().encode(full);
+
+      for (let i = 0; i < data.length; i += 200) {
+        await _bleChar.writeValue(data.slice(i, i + 200));
+      }
+
+      const dot = document.getElementById('k-bdot');
+      if (dot) dot.className = 'ble-dot on';
+      const txt = document.getElementById('k-btext');
+      if (txt) txt.textContent = 'Cetak lagi ke printer';
+
+      showToast('Struk berhasil dicetak!', 'success');
+    } catch (e) {
+      if (e.name === 'NotFoundError' || e.name === 'NotSupportedError') return;
+      _bleChar = null;
+      showToast('Gagal cetak: ' + e.message, 'error');
+    }
+  },
 };
 
 /* ===== STYLE KASIR (inject sekali) ===== */
 if (!document.getElementById('kasir-styles')) {
-    const style = document.createElement('style');
-    style.id = 'kasir-styles';
-    style.textContent = `
+  const style = document.createElement('style');
+  style.id = 'kasir-styles';
+  style.textContent = `
     .k-metode {
       padding: 12px 6px; border-radius: 13px;
       border: 1.5px solid var(--border); background: var(--white);
@@ -443,10 +657,10 @@ if (!document.getElementById('kasir-styles')) {
     .nav-item   { font-size: 9px !important; }
     .nav-icon   { width: 20px !important; height: 20px !important; }
   `;
-    document.head.appendChild(style);
+  document.head.appendChild(style);
 }
 
 /* ===== LOCAL HELPER ===== */
 function _escHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

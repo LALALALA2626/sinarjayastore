@@ -13,36 +13,47 @@ export async function renderDashboard(container) {
   try {
     const todayStr = today();
 
-    // Ambil data penjualan hari ini
-    const { data: penjualan, error } = await db
+    // Fetch penjualan hari ini
+    const { data: penjualan, error: e1 } = await db
       .from('tr_penjualan')
       .select('total_harga, total_qty, no_faktur, tanggal')
       .eq('tanggal', todayStr)
       .order('created_at', { ascending: false });
+    if (e1) throw e1;
 
-    if (error) throw error;
+    // Fetch hutang aktif
+    const { data: hutangData, error: e2 } = await db
+      .from('tr_hutang')
+      .select('*')
+      .eq('status', 'belum_lunas')
+      .order('created_at', { ascending: false });
+    if (e2) throw e2;
 
     const totalHarga = penjualan.reduce((s, r) => s + Number(r.total_harga), 0);
     const totalQty = penjualan.reduce((s, r) => s + Number(r.total_qty), 0);
     const jmlFaktur = penjualan.length;
+    const totalHutang = (hutangData || []).reduce((s, h) => s + Number(h.jumlah), 0);
 
     container.innerHTML = `
       <div class="gap-12">
+
+        <!-- STATS -->
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">💰</div>
-            <div class="stat-lbl">Total Penjualan Hari Ini</div>
+            <div class="stat-lbl">Penjualan hari ini</div>
             <div class="stat-val">${fmt(totalHarga)}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon">📦</div>
-            <div class="stat-lbl">Total Qty Terjual</div>
+            <div class="stat-lbl">Total qty terjual</div>
             <div class="stat-val">${totalQty.toLocaleString('id-ID')}</div>
           </div>
         </div>
 
+        <!-- RINGKASAN -->
         <div class="card">
-          <div class="sec-lbl">Ringkasan Hari Ini — ${fmtDate(todayStr)}</div>
+          <div class="sec-lbl">Ringkasan — ${fmtDate(todayStr)}</div>
           <div class="stats-grid" style="margin-bottom:0">
             <div style="text-align:center">
               <div style="font-size:28px;font-weight:800;color:var(--green)">${jmlFaktur}</div>
@@ -55,6 +66,7 @@ export async function renderDashboard(container) {
           </div>
         </div>
 
+        <!-- FAKTUR TERKINI -->
         ${jmlFaktur > 0 ? `
         <div class="card">
           <div class="sec-lbl">Faktur Terkini</div>
@@ -82,18 +94,71 @@ export async function renderDashboard(container) {
         <div class="card">
           <div class="empty">
             <div class="empty-ico">🛒</div>
-            <div>Belum ada transaksi hari ini.<br>
-              <a href="#transaksi" style="color:var(--green);font-weight:700">Mulai transaksi</a>
-            </div>
+            <div>Belum ada transaksi hari ini.</div>
           </div>
         </div>`}
 
-        <div class="card" style="background:linear-gradient(135deg,var(--green),var(--green-mid));border:none">
+        <!-- TOTAL BANNER -->
+        <div class="card" style="background:var(--green);border:none">
           <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Total Penjualan</div>
           <div style="color:#fff;font-size:30px;font-weight:800">${fmt(totalHarga)}</div>
           <div style="color:rgba(255,255,255,.65);font-size:12px;margin-top:4px">${fmtDate(todayStr)}</div>
         </div>
+
+        <!-- HUTANG AKTIF -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div class="sec-lbl" style="margin:0">Hutang Aktif</div>
+            <button class="btn btn-secondary btn-sm" onclick="navigateTo('hutang')">
+              Kelola Hutang →
+            </button>
+          </div>
+
+          ${!hutangData || hutangData.length === 0 ? `
+            <div class="card">
+              <div class="empty" style="padding:20px 0">
+                <div class="empty-ico">✅</div>
+                <div>Tidak ada hutang aktif.</div>
+              </div>
+            </div>` : `
+
+            <div class="card" style="background:#fef2f2;border-color:#fecaca;padding:14px;margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-size:13px;font-weight:700;color:#991b1b">Total Piutang</div>
+                  <div style="font-size:11px;color:#dc2626;margin-top:2px">${hutangData.length} pelanggan belum lunas</div>
+                </div>
+                <div style="font-size:22px;font-weight:800;color:#dc2626">${fmt(totalHutang)}</div>
+              </div>
+            </div>
+
+            ${hutangData.slice(0, 3).map(h => `
+              <div class="card" style="margin-bottom:8px;padding:12px 14px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div>
+                    <div style="font-size:14px;font-weight:700;color:var(--text)">${_esc(h.nama_pelanggan)}</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:2px">${fmtDate(h.tanggal)}${h.catatan ? ' · ' + h.catatan : ''}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-size:16px;font-weight:700;color:#dc2626">${fmt(h.jumlah)}</div>
+                    <button class="btn btn-secondary btn-sm" style="margin-top:4px;font-size:11px;padding:4px 10px"
+                      onclick="navigateTo('hutang')">Lunas →</button>
+                  </div>
+                </div>
+              </div>`).join('')}
+
+            ${hutangData.length > 3 ? `
+              <div style="text-align:center;margin-top:4px">
+                <button class="btn btn-outline" onclick="navigateTo('hutang')"
+                  style="font-size:13px;padding:10px">
+                  Lihat semua ${hutangData.length} hutang →
+                </button>
+              </div>` : ''}
+          `}
+        </div>
+
       </div>`;
+
   } catch (err) {
     container.innerHTML = `
       <div class="card">
@@ -110,7 +175,7 @@ function notConfiguredHTML() {
     <div class="cfg-warn">
       <h3>⚙️ Supabase Belum Dikonfigurasi</h3>
       <p>Edit file <code>env.js</code> dan isi <code>SUPABASE_URL</code>
-      serta <code>SUPABASE_ANON_KEY</code> dengan data dari project Supabase Anda.</p>
+      serta <code>SUPABASE_ANON_KEY</code>.</p>
     </div>`;
 }
 
@@ -119,13 +184,17 @@ function dashboardSkeletonHTML() {
     <div class="stats-grid">
       <div class="stat-card" style="opacity:.4">
         <div class="stat-icon">💰</div>
-        <div class="stat-lbl">Total Penjualan Hari Ini</div>
+        <div class="stat-lbl">Penjualan hari ini</div>
         <div class="stat-val">Rp —</div>
       </div>
       <div class="stat-card" style="opacity:.4">
         <div class="stat-icon">📦</div>
-        <div class="stat-lbl">Total Qty Terjual</div>
+        <div class="stat-lbl">Total qty terjual</div>
         <div class="stat-val">—</div>
       </div>
     </div>`;
+}
+
+function _esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
