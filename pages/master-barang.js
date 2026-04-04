@@ -18,7 +18,7 @@ export async function renderMasterBarang(container) {
     return;
   }
 
-  container.innerHTML = getFormHTML(false, {}) + '<div class="mt-12"><div class="page-loading"><div class="spinner"></div></div></div>';
+  container.innerHTML = getFormHTML(false, {}) + '<div class="mt-12" id="mb-table-wrap"></div>';
 
   // Pasang event handler form setelah render
   document.getElementById('mb-form').addEventListener('submit', handleSave);
@@ -61,8 +61,15 @@ function getFormHTML(editMode, barang = {}) {
 
 /* ===== LOAD TABLE ===== */
 async function loadTable() {
-  const wrap = document.getElementById('mb-table-wrap');
-  if (wrap) wrap.innerHTML = '';
+  let wrap = document.getElementById('mb-table-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'mb-table-wrap';
+    wrap.className = 'mt-12';
+    _container.appendChild(wrap);
+  }
+
+  wrap.innerHTML = '';
 
   const { data, error } = await db
     .from('ms_barang')
@@ -70,7 +77,7 @@ async function loadTable() {
     .order('nama_barang');
 
   if (error) {
-    if (wrap) wrap.innerHTML = `<div class="card"><div class="empty"><div class="empty-ico">⚠️</div><div>${error.message}</div></div></div>`;
+    wrap.innerHTML = `<div class="card"><div class="empty"><div class="empty-ico">⚠️</div><div>${error.message}</div></div></div>`;
     return;
   }
 
@@ -112,21 +119,9 @@ async function loadTable() {
         </div>
       </div>`;
 
-  // Cek apakah wrap sudah ada atau perlu inject
-  const existingWrap = document.getElementById('mb-table-wrap');
-  if (existingWrap) {
-    existingWrap.innerHTML = `
-      <div class="sec-lbl">Daftar Barang (${data.length})</div>
-      ${tableHTML}`;
-  } else {
-    const newWrap = document.createElement('div');
-    newWrap.id = 'mb-table-wrap';
-    newWrap.className = 'mt-12';
-    newWrap.innerHTML = `
-      <div class="sec-lbl">Daftar Barang (${data.length})</div>
-      ${tableHTML}`;
-    _container.appendChild(newWrap);
-  }
+  wrap.innerHTML = `
+    <div class="sec-lbl">Daftar Barang (${data.length})</div>
+    ${tableHTML}`;
 }
 
 /* ===== HANDLE SAVE (Tambah / Update) ===== */
