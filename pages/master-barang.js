@@ -62,7 +62,7 @@ function getFormHTML(editMode, barang = {}) {
 /* ===== LOAD TABLE ===== */
 async function loadTable() {
   const wrap = document.getElementById('mb-table-wrap');
-  if (wrap) wrap.innerHTML = '<div class="page-loading"><div class="spinner"></div></div>';
+  if (wrap) wrap.innerHTML = '';
 
   const { data, error } = await db
     .from('ms_barang')
