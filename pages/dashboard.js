@@ -1,6 +1,6 @@
 // pages/dashboard.js
 import { db, isConfigured } from '../supabase.js';
-import { fmt, today, fmtDate } from '../utils.js';
+import { fmt, today, fmtDate, showToast } from '../utils.js';
 
 export async function renderDashboard(container) {
   if (!isConfigured) {
@@ -157,7 +157,23 @@ export async function renderDashboard(container) {
           `}
         </div>
 
+        <!-- RESET SECTION -->
+        <div class="card" style="border-color:#fecaca;background:#fef2f2">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:#991b1b">🗑️ Reset Data Hari Ini</div>
+              <div style="font-size:11px;color:#dc2626;margin-top:2px">Hapus semua bon + transaksi hari ini (lokal &amp; server)</div>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="DASHBOARD.resetHariIni()" style="white-space:nowrap">
+              Reset Sekarang
+            </button>
+          </div>
+        </div>
+
       </div>`;
+
+    // Pasang global DASHBOARD setelah render
+    _initDashboardGlobal(container);
 
   } catch (err) {
     container.innerHTML = `
@@ -168,6 +184,50 @@ export async function renderDashboard(container) {
         </div>
       </div>`;
   }
+}
+
+/* ===== GLOBAL DASHBOARD OBJECT ===== */
+function _initDashboardGlobal(container) {
+  window.DASHBOARD = {
+    async resetHariIni() {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+      const todayBon = allBon.filter(b => b.waktu && b.waktu.slice(0, 10) === todayKey);
+
+      if (!todayBon.length && !isConfigured) {
+        showToast('Tidak ada data hari ini untuk direset', 'info');
+        return;
+      }
+
+      if (!confirm(`Reset SEMUA data hari ini (${todayKey})?\n\n• ${todayBon.length} bon lokal\n• Transaksi di server\n• Cache produk tersimpan\n\nData tidak bisa dikembalikan!`)) return;
+
+      // 1. Hapus dari localStorage
+      const newBon = allBon.filter(b => !b.waktu || b.waktu.slice(0, 10) !== todayKey);
+      localStorage.setItem('sj_bon', JSON.stringify(newBon));
+
+      // 2. Hapus cache produk
+      localStorage.removeItem('sj_produk_cache');
+
+      // 3. Hapus dari Supabase
+      if (isConfigured && db) {
+        try {
+          const fakturList = todayBon.map(b => b.noFaktur).filter(Boolean);
+          if (fakturList.length) {
+            await db.from('tr_penjualan_detail').delete().in('no_faktur', fakturList);
+            await db.from('tr_hutang').delete().in('no_faktur', fakturList);
+          }
+          await db.from('tr_penjualan').delete().eq('tanggal', todayKey);
+        } catch (err) {
+          console.warn('Gagal hapus dari Supabase:', err.message);
+          showToast('Reset lokal OK, gagal hapus server: ' + err.message, 'warning');
+        }
+      }
+
+      showToast('Data hari ini berhasil direset ✅', 'success');
+      // Refresh dashboard
+      await renderDashboard(container);
+    },
+  };
 }
 
 function notConfiguredHTML() {
