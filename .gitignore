@@ -23,3 +23,8 @@ Thumbs.db
 # Build artifacts
 dist/
 .cache/
+
+# SSL / HTTPS local dev
+cert.pem
+key.pem
+gen-cert.js
