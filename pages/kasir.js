@@ -309,18 +309,37 @@ function _showStruk(bon, isView = false) {
       <div class="modal-sheet" onclick="event.stopPropagation()">
         <div class="drag-bar"></div>
         <div class="sheet-title">${isView ? '🧾 Detail Bon' : '✅ Bon Berhasil Dibuat'}</div>
-        <div style="font-family:monospace;background:#f9fafb;border-radius:12px;
-          padding:14px;font-size:12px;line-height:1.9;color:var(--text);
-          white-space:pre;overflow-x:auto;margin-bottom:14px;
-          border:1px solid var(--border)">${struktxt}</div>
-        <button style="display:flex;align-items:center;gap:10px;width:100%;padding:14px 16px;
-          background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:13px;
-          font-size:14px;font-weight:600;cursor:pointer;color:#166534;
-          font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:10px"
+
+        <!-- Preview Bon seperti kertas struk -->
+        <div style="
+          font-family: 'Courier New', Courier, monospace;
+          background: #fff;
+          border-radius: 10px;
+          padding: 18px 16px;
+          font-size: 13px;
+          line-height: 2;
+          color: #1a1a1a;
+          white-space: pre;
+          overflow-x: auto;
+          margin-bottom: 14px;
+          border: 1px solid #e5e7eb;
+          box-shadow: 0 2px 8px rgba(0,0,0,.06);
+          letter-spacing: 0.02em;
+        ">${struktxt}</div>
+
+        <!-- Tombol Cetak Bluetooth -->
+        <button style="
+          display:flex;align-items:center;gap:10px;width:100%;
+          padding:14px 16px;background:#f0fdf4;
+          border:1.5px solid #bbf7d0;border-radius:13px;
+          font-size:14px;font-weight:600;cursor:pointer;
+          color:#166534;font-family:'Plus Jakarta Sans',sans-serif;
+          margin-bottom:10px"
           onclick="KASIR._printBT(\`${safeTxt}\`)">
           <div class="ble-dot${_bleChar ? ' on' : ''}" id="k-bdot"></div>
           <span id="k-btext">${_bleChar ? 'Cetak lagi ke printer' : 'Sambungkan printer Bluetooth'}</span>
         </button>
+
         <button class="btn btn-primary" onclick="${isView ? 'KASIR._closeModal()' : 'KASIR._closeModal();KASIR.reset()'}">
           ${isView ? 'Tutup' : '🆕 Bon Baru'}
         </button>
