@@ -1,0 +1,16 @@
+# ============================================================
+# Sinar Jaya Grocery — .gitignore
+# ============================================================
+
+# File konfigurasi rahasia (Supabase URL & Key)
+# Jangan pernah commit file ini ke Git!
+env.js
+
+# Node modules (jika ada)
+node_modules/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.log

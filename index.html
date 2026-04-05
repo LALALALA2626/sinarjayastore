@@ -21,18 +21,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
-    /* 5 tab nav override */
+    /* 6 tab nav override */
     .bottom-nav {
-      grid-template-columns: repeat(5, 1fr) !important;
+      grid-template-columns: repeat(6, 1fr) !important;
     }
 
     .nav-item {
-      font-size: 9px !important;
+      font-size: 8.5px !important;
     }
 
     .nav-icon {
-      width: 20px !important;
-      height: 20px !important;
+      width: 19px !important;
+      height: 19px !important;
     }
   </style>
 </head>
@@ -111,6 +111,16 @@
           <line x1="6" y1="20" x2="6" y2="14" />
         </svg>
         <span>Laporan</span>
+      </button>
+
+      <button class="nav-item" data-page="hutang" onclick="navigateTo('hutang')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M12 10v4" />
+          <path d="M10 12h4" />
+        </svg>
+        <span>Hutang</span>
       </button>
 
     </nav>

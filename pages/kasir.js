@@ -698,9 +698,9 @@ if (!document.getElementById('kasir-styles')) {
     }
     .ble-dot { width:10px; height:10px; border-radius:50%; background:#d1d5db; flex-shrink:0; }
     .ble-dot.on { background:#22c55e; }
-    .bottom-nav { grid-template-columns: repeat(5, 1fr) !important; }
-    .nav-item   { font-size: 9px !important; }
-    .nav-icon   { width: 20px !important; height: 20px !important; }
+    .bottom-nav { grid-template-columns: repeat(6, 1fr) !important; }
+    .nav-item   { font-size: 8.5px !important; }
+    .nav-icon   { width: 19px !important; height: 19px !important; }
   `;
   document.head.appendChild(style);
 }
