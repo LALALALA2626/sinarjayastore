@@ -21,11 +21,14 @@ CREATE TABLE IF NOT EXISTS ms_barang (
 
 -- 3. Header Transaksi Penjualan
 CREATE TABLE IF NOT EXISTS tr_penjualan (
-  no_faktur   TEXT PRIMARY KEY,
-  tanggal     DATE NOT NULL,
-  total_harga NUMERIC(15,2) NOT NULL DEFAULT 0,
-  total_qty   NUMERIC(10,2) NOT NULL DEFAULT 0,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  no_faktur      TEXT PRIMARY KEY,
+  tanggal        DATE NOT NULL,
+  total_harga    NUMERIC(15,2) NOT NULL DEFAULT 0,
+  total_qty      NUMERIC(10,2) NOT NULL DEFAULT 0,
+  nama_pelanggan TEXT,
+  catatan        TEXT,
+  metode         TEXT DEFAULT 'Tunai',
+  created_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 4. Detail Transaksi Penjualan
@@ -36,7 +39,8 @@ CREATE TABLE IF NOT EXISTS tr_penjualan_detail (
   nama_barang  TEXT NOT NULL,
   qty          NUMERIC(10,2) NOT NULL,
   harga_satuan NUMERIC(15,2) NOT NULL,
-  subtotal     NUMERIC(15,2) NOT NULL
+  subtotal     NUMERIC(15,2) NOT NULL,
+  satuan       TEXT DEFAULT 'pcs'
 );
 
 -- 5. Seed data awal tm_module

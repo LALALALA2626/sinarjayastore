@@ -357,10 +357,10 @@ async function _syncBonFromSupabase() {
   const tgl   = (tglEl && tglEl.value) || new Date().toISOString().slice(0, 10);
 
   try {
-    // Ambil header bon
+    // Ambil header bon (termasuk nama_pelanggan, catatan, metode)
     const { data: headers } = await db
       .from('tr_penjualan')
-      .select('no_faktur, tanggal, total_harga, created_at, metode')
+      .select('no_faktur, tanggal, total_harga, created_at, metode, nama_pelanggan, catatan')
       .eq('tanggal', tgl)
       .order('created_at', { ascending: false });
 
@@ -370,7 +370,7 @@ async function _syncBonFromSupabase() {
     const fakturList = headers.map(h => h.no_faktur);
     const { data: details } = await db
       .from('tr_penjualan_detail')
-      .select('no_faktur, nama_barang, kode_barang, qty, harga_satuan, subtotal')
+      .select('no_faktur, nama_barang, kode_barang, qty, harga_satuan, subtotal, satuan')
       .in('no_faktur', fakturList);
 
     const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
@@ -385,15 +385,15 @@ async function _syncBonFromSupabase() {
         id           : Date.now() + Math.random(), // pseudo-id unik
         noFaktur     : h.no_faktur,
         waktu        : h.created_at || (tgl + 'T00:00:00.000Z'),
-        namaPelanggan: '(dari server)',
-        catatan      : '',
+        namaPelanggan: h.nama_pelanggan || '(tidak diketahui)',
+        catatan      : h.catatan || '',
         metode       : h.metode || 'Tunai',
         total        : h.total_harga,
         items        : itemDetails.map(d => ({
           nama   : d.nama_barang,
           harga  : d.harga_satuan,
           qty    : String(d.qty),
-          satuan : 'pcs',
+          satuan : d.satuan || 'pcs',
           kode_barang: d.kode_barang,
         })),
         _fromServer: true, // flag: data ini dari Supabase
@@ -650,22 +650,27 @@ window.KASIR = {
 
     if (isConfigured && db) {
       try {
+        // Simpan header bon — termasuk nama_pelanggan, catatan, metode
         const { error: e1 } = await db.from('tr_penjualan').insert({
-          no_faktur: noFaktur,
-          tanggal: tanggal,
-          total_harga: total,
-          total_qty: totalQty,
+          no_faktur     : noFaktur,
+          tanggal       : tanggal,
+          total_harga   : total,
+          total_qty     : totalQty,
+          nama_pelanggan: nama,
+          catatan       : catatan || null,
+          metode        : _metode,
         });
         if (e1) throw e1;
 
         const { error: e2 } = await db.from('tr_penjualan_detail').insert(
           valid.map(i => ({
-            no_faktur: noFaktur,
-            kode_barang: i.kode_barang || null,
-            nama_barang: i.nama,
-            qty: _parseQtyText(i.qty),
+            no_faktur   : noFaktur,
+            kode_barang : i.kode_barang || null,
+            nama_barang : i.nama,
+            qty         : _parseQtyText(i.qty),
             harga_satuan: i.harga,
-            subtotal: i.harga * _parseQtyText(i.qty),
+            subtotal    : i.harga * _parseQtyText(i.qty),
+            satuan      : i.satuan || 'pcs',
           }))
         );
         if (e2) throw e2;
@@ -673,12 +678,12 @@ window.KASIR = {
         // Auto-catat hutang jika metode Hutang
         if (_metode === 'Hutang') {
           await db.from('tr_hutang').insert({
-            no_faktur: noFaktur,
+            no_faktur     : noFaktur,
             nama_pelanggan: nama,
-            jumlah: total,
-            catatan: catatan || null,
-            tanggal: tanggal,
-            status: 'belum_lunas',
+            jumlah        : total,
+            catatan       : catatan || null,
+            tanggal       : tanggal,
+            status        : 'belum_lunas',
           });
         }
 
