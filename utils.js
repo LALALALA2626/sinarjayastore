@@ -163,13 +163,14 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
   /* ── Header info ─────────────────────── */
   // Format tanggal singkat dd/mm/yy HH.MM agar muat di 32 char
   function shortDate(isoStr) {
-    try {
-      const d = new Date(isoStr);
-      const pad = n => String(n).padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}.${pad(d.getMinutes())}`;
-    } catch { return isoStr; }
+    if (!isoStr) return '—';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return String(isoStr).substring(0, 20);
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}.${pad(d.getMinutes())}`;
   }
-  const tglDisplay = tanggal.length > 20 ? shortDate(tanggal) : tanggal;
+  // Selalu pakai shortDate — tanggal sudah berupa ISO string dari bon.waktu
+  const tglDisplay = shortDate(tanggal);
 
   const noLine      = `No.    : ${noFaktur}`;
   const tglLine     = `Tgl.   : ${tglDisplay}`;

@@ -292,13 +292,13 @@ async function _renderRiwayat() {
 /* ===== SHOW STRUK MODAL ===== */
 function _showStruk(bon, isView = false) {
   const struktxt = buildStrukText({
-    noFaktur: bon.noFaktur,
-    tanggal: fmtDateTime(bon.waktu),
+    noFaktur     : bon.noFaktur,
+    tanggal      : bon.waktu,        // kirim ISO string — shortDate() di utils.js yang format
     namaPelanggan: bon.namaPelanggan,
-    catatan: bon.catatan,
-    items: bon.items,
-    total: bon.total,
-    metode: bon.metode,
+    catatan      : bon.catatan,
+    items        : bon.items,
+    total        : bon.total,
+    metode       : bon.metode,
   });
 
   const safeTxt = struktxt.replace(/`/g, "'");
