@@ -120,7 +120,10 @@ async function loadTable() {
       </div>`;
 
   wrap.innerHTML = `
-    <div class="sec-lbl">Daftar Barang (${data.length})</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="sec-lbl" style="margin:0">Daftar Barang (${data.length})</div>
+      ${data.length > 0 ? `<button class="btn btn-danger btn-sm" onclick="MB.hapusSemuaBarang()" style="font-size:12px;padding:6px 12px">🗑️ Hapus Semua</button>` : ''}
+    </div>
     ${tableHTML}`;
 }
 
@@ -194,6 +197,15 @@ window.MB = {
     const { error } = await db.from('ms_barang').delete().eq('kode_barang', kode);
     if (error) { showToast('Gagal menghapus: ' + error.message, 'error'); return; }
     showToast(`Barang ${nama} berhasil dihapus`);
+    await loadTable();
+  },
+
+  async hapusSemuaBarang() {
+    if (!confirm('Hapus SEMUA barang dari master produk?\n\nSeluruh data ms_barang akan dihapus permanen. Lanjutkan?')) return;
+    if (!confirm('Konfirmasi sekali lagi: Yakin ingin menghapus SEMUA produk?')) return;
+    const { error } = await db.from('ms_barang').delete().neq('kode_barang', '_dummy_');
+    if (error) { showToast('Gagal: ' + error.message, 'error'); return; }
+    showToast('Semua barang berhasil dihapus 🗑️', 'success');
     await loadTable();
   },
 };

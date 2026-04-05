@@ -83,6 +83,29 @@ export async function renderKasir(container) {
           </div>
         </div>
 
+        <div id="k-produk-cache-wrap" style="margin-top:10px;display:none">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">
+            🍪 Produk Tersimpan
+            <span style="font-weight:400;font-size:9px;margin-left:8px;text-transform:none;letter-spacing:0;color:var(--muted)">· tap untuk langsung tambah</span>
+          </div>
+          <div id="k-produk-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">
+            Jumlah cepat
+            <span style="font-weight:400;font-size:9px;margin-left:8px;text-transform:none;letter-spacing:0;color:var(--muted)">· bisa ketik pecahan: 1/2, 1/4 ...</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${['1/4','1/3','1/2','2/3','3/4','1.5','2','3','5','10'].map(q => `
+              <button style="padding:5px 11px;border-radius:20px;border:1.5px solid var(--border);
+                background:var(--white);font-size:12px;font-weight:600;cursor:pointer;
+                color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif"
+                onclick="KASIR.setQty('${q}')">${q}</button>
+            `).join('')}
+          </div>
+        </div>
+
         <div style="margin-top:10px">
           <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px">
             Satuan cepat
@@ -125,6 +148,7 @@ export async function renderKasir(container) {
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="sec-lbl" style="margin:0">Riwayat Bon</div>
+          <button class="btn btn-danger btn-sm" onclick="KASIR.hapusBonHariIni()" style="font-size:12px;padding:6px 12px">🗑️ Hapus Hari Ini</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <input id="k-search" type="text" placeholder="Cari nama pelanggan..."
@@ -143,6 +167,7 @@ export async function renderKasir(container) {
 
   _renderItems();
   _renderRiwayat();
+  _renderProductCacheChips();
 }
 
 /* ===== RENDER ITEMS ===== */
@@ -165,20 +190,20 @@ function _renderItems() {
   if (sw) sw.style.display = 'block';
   if (cols) cols.style.display = 'grid';
 
-  // Kumpulkan semua nama barang dari riwayat bon sebagai autocomplete suggestion
-  const allBonForSuggest = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-  const namaSet = new Set();
-  allBonForSuggest.forEach(b => (b.items || []).forEach(i => { if (i.nama) namaSet.add(i.nama.trim()); }));
-  const datalistOpts = [...namaSet].sort().map(n => `<option value="${_escHtml(n)}">`).join('');
+  // Datalist dari local product cache (bukan dari bon history)
+  const cache = _loadProductCache();
+  const datalistOpts = cache.map(p => `<option value="${_escHtml(p.nama)}">`).join('');
 
   el.innerHTML = `<datalist id="k-nama-list">${datalistOpts}</datalist>` +
     _items.map(it => `
-    <div style="display:grid;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6">
+    <div data-item-id="${it.id}" style="display:grid;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6">
       <input class="ii k-nama-inp" placeholder="Nama barang"
         value="${_escHtml(it.nama)}"
         list="k-nama-list"
-        oninput="KASIR.updItem(${it.id},'nama',this.value)" autocomplete="off">
-      <input class="ii" style="text-align:right" placeholder="0" type="number"
+        oninput="KASIR.updItem(${it.id},'nama',this.value)"
+        onchange="KASIR.autoFill(${it.id},this.value)"
+        autocomplete="off">
+      <input class="ii k-harga-inp" style="text-align:right" placeholder="0" type="number"
         value="${it.harga || ''}"
         oninput="KASIR.updItem(${it.id},'harga',this.value)" inputmode="numeric">
       <input class="ii" type="text"
@@ -186,8 +211,8 @@ function _renderItems() {
         oninput="KASIR.updItem(${it.id},'qty',this.value)"
         inputmode="decimal"
         style="text-align:center;font-size:12px"
-        title="Bisa ketik: 1, 0.5, 1/2, 2 karton">
-      <select style="padding:9px 4px;border:1.5px solid var(--border);border-radius:var(--radius-xs);
+        title="Format: 1 · 0.5 · 1/2 · 1/4 · dsb">
+      <select class="k-satuan-sel" style="padding:9px 4px;border:1.5px solid var(--border);border-radius:var(--radius-xs);
         font-size:11px;font-family:'Plus Jakarta Sans',sans-serif;color:var(--text);
         background:#fafafa;width:100%;cursor:pointer;appearance:none;-webkit-appearance:none;text-align:center"
         onchange="KASIR.updItem(${it.id},'satuan',this.value)">
@@ -198,6 +223,27 @@ function _renderItems() {
     </div>`).join('');
 
   _renderSummary();
+}
+
+/* ===== RENDER PRODUK CACHE CHIPS ===== */
+function _renderProductCacheChips() {
+  const wrap = document.getElementById('k-produk-cache-wrap');
+  const el   = document.getElementById('k-produk-chips');
+  if (!wrap || !el) return;
+
+  const cache = _loadProductCache();
+  if (!cache.length) { wrap.style.display = 'none'; return; }
+
+  wrap.style.display = 'block';
+  el.innerHTML = cache.slice(0, 24).map((p, idx) => `
+    <button style="padding:5px 12px;border-radius:20px;border:1.5px solid #d1fae5;
+      background:#f0fdf4;font-size:12px;font-weight:600;cursor:pointer;
+      color:#065f46;font-family:'Plus Jakarta Sans',sans-serif;
+      display:inline-flex;align-items:center;gap:6px;white-space:nowrap"
+      onclick="KASIR.addFromCache(${idx})">
+      ${_escHtml(p.nama)}
+      <span style="font-weight:400;opacity:.7;font-size:11px">${fmt(p.harga)}</span>
+    </button>`).join('');
 }
 
 /* ===== RENDER SUMMARY ===== */
@@ -343,53 +389,36 @@ async function _syncBonFromSupabase() {
   }
 }
 
-/* ===== SYNC BARANG KE MASTER ===== */
-// Hanya insert ke ms_barang jika nama belum pernah ada sama sekali.
-// Cek dilakukan batch sekali, bukan per-item, supaya tidak lambat.
-async function _syncBarangKeMaster(items) {
-  if (!isConfigured || !db) return;
+/* ===== LOCAL PRODUCT CACHE (Cookie-like) ===== */
+// Produk yang pernah dipakai disimpan di localStorage sj_produk_cache.
+// Tidak auto-insert ke ms_barang agar tidak duplikat.
+const _CACHE_KEY = 'sj_produk_cache';
 
-  const namaList = [...new Set(
-    items.map(i => (i.nama || '').trim().toLowerCase()).filter(Boolean)
-  )];
-  if (!namaList.length) return;
+function _loadProductCache() {
+  try { return JSON.parse(localStorage.getItem(_CACHE_KEY) || '[]'); } catch { return []; }
+}
 
-  // Ambil semua barang yang nama-nya sudah ada (case-insensitive)
-  const { data: existing } = await db
-    .from('ms_barang')
-    .select('nama_barang')
-    .in('nama_barang', namaList.map(n =>
-      // Supabase .in() case-sensitive; kita pakai ilike lewat filter manual setelah fetch
-      items.find(i => i.nama.trim().toLowerCase() === n)?.nama.trim()
-    ).filter(Boolean));
+function _saveProductsToCache(items) {
+  const cache = _loadProductCache();
+  const cacheMap = {};
+  cache.forEach(p => { cacheMap[p.nama.trim().toLowerCase()] = p; });
 
-  const existingNormalized = new Set(
-    (existing || []).map(r => r.nama_barang.trim().toLowerCase())
-  );
+  items.forEach(i => {
+    if (!i.nama) return;
+    const key = i.nama.trim().toLowerCase();
+    cacheMap[key] = {
+      nama    : i.nama.trim(),
+      harga   : i.harga  || 0,
+      satuan  : i.satuan || 'pcs',
+      lastUsed: new Date().toISOString(),
+    };
+  });
 
-  // Insert hanya yang belum ada
-  const toInsert = items
-    .filter(i => i.nama && !existingNormalized.has(i.nama.trim().toLowerCase()))
-    .map(i => i.nama.trim());
-
-  // Deduplicate lagi (misal 2 baris bon dengan nama sama)
-  const uniqueToInsert = [...new Set(toInsert.map(n => n.toLowerCase()))]
-    .map(nl => items.find(i => i.nama.trim().toLowerCase() === nl)?.nama.trim())
-    .filter(Boolean);
-
-  for (const nama of uniqueToInsert) {
-    const kode = _generateKode(nama);
-    try {
-      await db.from('ms_barang').insert({
-        kode_barang: kode,
-        nama_barang: nama,
-        harga_satuan: 0,
-      });
-    } catch (e) {
-      // Abaikan jika race condition (sudah di-insert dari tab lain)
-      console.warn('_syncBarangKeMaster skip duplicate:', nama);
-    }
-  }
+  // Urutkan terbaru di depan, simpan max 100
+  const sorted = Object.values(cacheMap)
+    .sort((a, b) => new Date(b.lastUsed) - new Date(a.lastUsed))
+    .slice(0, 100);
+  localStorage.setItem(_CACHE_KEY, JSON.stringify(sorted));
 }
 
 /* ===== GLOBAL KASIR OBJECT ===== */
@@ -431,6 +460,72 @@ window.KASIR = {
     }
     _items[_items.length - 1].satuan = s;
     _renderItems();
+  },
+
+  setQty(q) {
+    if (!_items.length) return;
+    _items[_items.length - 1].qty = q;
+    _renderItems();
+  },
+
+  addFromCache(idx) {
+    const cache = _loadProductCache();
+    const p = cache[idx];
+    if (!p) return;
+    _items.push({ id: ++_itemId, nama: p.nama, harga: p.harga, qty: 1, satuan: p.satuan || 'pcs' });
+    _renderItems();
+    _renderProductCacheChips();
+    setTimeout(() => {
+      const list = document.getElementById('k-items-list');
+      if (list) list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
+  },
+
+  autoFill(id, nama) {
+    const item = _items.find(i => i.id === id);
+    if (!item) return;
+    const cache = _loadProductCache();
+    const match = cache.find(p => p.nama.toLowerCase() === nama.trim().toLowerCase());
+    if (!match) return;
+    item.harga  = match.harga;
+    item.satuan = match.satuan || 'pcs';
+    // Update DOM langsung (tanpa full re-render agar fokus tidak hilang)
+    const row = document.querySelector(`[data-item-id="${id}"]`);
+    if (row) {
+      const hEl = row.querySelector('.k-harga-inp');
+      if (hEl) hEl.value = match.harga;
+      const sEl = row.querySelector('.k-satuan-sel');
+      if (sEl) sEl.value = match.satuan || 'pcs';
+    }
+    _renderSummary();
+  },
+
+  async hapusBonHariIni() {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const todayBon = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
+    if (!todayBon.length) { showToast('Tidak ada bon hari ini', 'info'); return; }
+
+    if (!confirm(`Hapus ${todayBon.length} bon hari ini (${todayKey})?\n\nData tidak bisa dikembalikan.`)) return;
+
+    const newList = allBon.filter(b => b.waktu.slice(0, 10) !== todayKey);
+    localStorage.setItem('sj_bon', JSON.stringify(newList));
+
+    if (isConfigured && db) {
+      try {
+        const fakturList = todayBon.map(b => b.noFaktur).filter(Boolean);
+        if (fakturList.length) {
+          await db.from('tr_penjualan_detail').delete().in('no_faktur', fakturList);
+          await db.from('tr_hutang').delete().in('no_faktur', fakturList);
+        }
+        await db.from('tr_penjualan').delete().eq('tanggal', todayKey);
+      } catch (err) {
+        console.warn('Gagal hapus dari Supabase:', err.message);
+      }
+    }
+
+    showToast(`${todayBon.length} bon hari ini berhasil dihapus 🗑️`, 'success');
+    _renderRiwayat();
   },
 
   setMetode(m) {
@@ -568,13 +663,14 @@ window.KASIR = {
           });
         }
 
-        await _syncBarangKeMaster(valid);
         showToast('Bon tersimpan & masuk laporan ✅', 'success');
       } catch (err) {
         showToast('Bon tersimpan lokal, gagal sync: ' + err.message, 'warning');
       }
     }
 
+    _saveProductsToCache(valid);
+    _renderProductCacheChips();
     _showStruk(bon);
     _renderRiwayat();
   },
