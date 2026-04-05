@@ -328,6 +328,7 @@ function _showStruk(bon, isView = false) {
         ">${struktxt}</div>
 
         <!-- Tombol Cetak Bluetooth -->
+        ${navigator.bluetooth ? `
         <button style="
           display:flex;align-items:center;gap:10px;width:100%;
           padding:14px 16px;background:#f0fdf4;
@@ -338,7 +339,16 @@ function _showStruk(bon, isView = false) {
           onclick="KASIR._printBT(\`${safeTxt}\`)">
           <div class="ble-dot${_bleChar ? ' on' : ''}" id="k-bdot"></div>
           <span id="k-btext">${_bleChar ? 'Cetak lagi ke printer' : 'Sambungkan printer Bluetooth'}</span>
-        </button>
+        </button>` : `
+        <div style="
+          display:flex;align-items:center;gap:10px;width:100%;
+          padding:12px 16px;background:#fefce8;
+          border:1.5px solid #fde68a;border-radius:13px;
+          font-size:13px;font-weight:500;
+          color:#92400e;font-family:'Plus Jakarta Sans',sans-serif;
+          margin-bottom:10px">
+          ⚠️ Bluetooth tidak tersedia. Buka via HTTPS atau gunakan localhost.
+        </div>`}
 
         <button class="btn btn-primary" onclick="${isView ? 'KASIR._closeModal()' : 'KASIR._closeModal();KASIR.reset()'}">
           ${isView ? 'Tutup' : '🆕 Bon Baru'}
@@ -940,9 +950,15 @@ window.KASIR = {
   },
 
   async _printBT(text) {
+    // Web Bluetooth hanya tersedia di HTTPS atau localhost
+    if (!navigator.bluetooth) {
+      showToast('Bluetooth tidak didukung di koneksi HTTP. Gunakan HTTPS atau akses via localhost.', 'error');
+      return;
+    }
     try {
       if (!_bleChar) {
-        document.getElementById('k-btext').textContent = 'Mencari printer...';
+        const btext = document.getElementById('k-btext');
+        if (btext) btext.textContent = 'Mencari printer...';
         const dev = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
           optionalServices: [
@@ -963,7 +979,7 @@ window.KASIR = {
       }
 
       const ESC = String.fromCharCode(27);
-      const GS = String.fromCharCode(29);
+      const GS  = String.fromCharCode(29);
       const full = ESC + '@' + ESC + 'a\x00' + text + '\n\n\n' + GS + 'V\x41\x03';
       const data = new TextEncoder().encode(full);
 
