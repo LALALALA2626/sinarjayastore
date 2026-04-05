@@ -1,4 +1,6 @@
 // supabase.js
+// env.js sudah diload di <head> sebelum module ini di-evaluate,
+// sehingga window.SUPABASE_URL & window.SUPABASE_ANON_KEY sudah tersedia.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const url = window.SUPABASE_URL || '';
@@ -12,3 +14,4 @@ export const isConfigured = (
 );
 
 export const db = isConfigured ? createClient(url, key) : null;
+

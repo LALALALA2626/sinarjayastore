@@ -3,6 +3,9 @@
 
 <head>
   <meta charset="UTF-8">
+  <!-- env.js dimuat pertama kali (synchronous) agar window.SUPABASE_* tersedia
+       sebelum ES module app.js dan supabase.js di-evaluate -->
+  <script src="env.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -128,7 +131,6 @@
 
   <div id="modal-container"></div>
 
-  <script src="env.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 
