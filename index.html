@@ -7,9 +7,31 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <!-- env.js dimuat pertama kali (synchronous) agar window.SUPABASE_* tersedia
-       sebelum ES module app.js dan supabase.js di-evaluate -->
-  <script src="env.js?v=20260405"></script>
+  <!-- Loader konfigurasi: ambil dari Netlify Function (production) atau env.js (local dev) -->
+  <script>
+    window.__configReady = (async function () {
+      // Cek apakah sudah di-inject oleh env.js (local dev)
+      const alreadySet =
+        window.SUPABASE_URL && window.SUPABASE_URL.startsWith('https://') &&
+        !window.SUPABASE_URL.includes('YOUR_PROJECT_ID');
+
+      if (!alreadySet) {
+        // Di Netlify: ambil dari serverless function (aman, tidak ada di kode)
+        try {
+          const r = await fetch('/.netlify/functions/env-config');
+          if (r.ok) {
+            const cfg = await r.json();
+            window.SUPABASE_URL      = cfg.url;
+            window.SUPABASE_ANON_KEY = cfg.key;
+          }
+        } catch (e) {
+          console.warn('[Config] Netlify function tidak tersedia, coba env.js manual.');
+        }
+      }
+    })();
+  </script>
+  <!-- env.js hanya ada di lokal (di-gitignore). Di Netlify file ini kosong/tidak ada. -->
+  <script src="env.js?v=20260405" onerror="void 0"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -135,7 +157,15 @@
 
   <div id="modal-container"></div>
 
-  <script type="module" src="app.js"></script>
+  <!-- app.js dimuat setelah config selesai -->
+  <script>
+    window.__configReady.then(() => {
+      const s = document.createElement('script');
+      s.type  = 'module';
+      s.src   = 'app.js?v=20260406';
+      document.body.appendChild(s);
+    });
+  </script>
 </body>
 
 </html>

@@ -223,21 +223,24 @@ function _renderSummary() {
 }
 
 /* ===== RENDER RIWAYAT ===== */
-function _renderRiwayat() {
+async function _renderRiwayat() {
   const tglEl = document.getElementById('k-filter-tgl');
   if (tglEl && !tglEl.value) {
     tglEl.value = new Date().toISOString().slice(0, 10);
   }
-  KASIR.filterRiwayat();
+
+  // Sinkron localStorage vs Supabase lalu update count/rev
+  await _syncBonFromSupabase();
 
   const todayKey = new Date().toISOString().slice(0, 10);
-  const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-  const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
+  const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+  const bonHari  = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
   const revTotal = bonHari.reduce((s, b) => s + b.total, 0);
-  const cntEl = document.getElementById('k-bon-count');
-  const revEl = document.getElementById('k-rev');
+  const cntEl    = document.getElementById('k-bon-count');
+  const revEl    = document.getElementById('k-rev');
   if (cntEl) cntEl.textContent = bonHari.length + ' bon';
   if (revEl) revEl.textContent = fmt(revTotal);
+  KASIR.filterRiwayat();
 }
 
 /* ===== SHOW STRUK MODAL ===== */
@@ -277,6 +280,67 @@ function _showStruk(bon, isView = false) {
         </button>
       </div>
     </div>`;
+}
+
+/* ===== SYNC BON DARI SUPABASE KE LOCALSTORAGE ===== */
+// Ambil bon dari Supabase untuk tanggal filter aktif (atau hari ini),
+// lalu merge ke localStorage. Bon yang sudah ada (by noFaktur) tidak diduplikat.
+async function _syncBonFromSupabase() {
+  if (!isConfigured || !db) return;
+
+  const tglEl = document.getElementById('k-filter-tgl');
+  const tgl   = (tglEl && tglEl.value) || new Date().toISOString().slice(0, 10);
+
+  try {
+    // Ambil header bon
+    const { data: headers } = await db
+      .from('tr_penjualan')
+      .select('no_faktur, tanggal, total_harga, created_at, metode')
+      .eq('tanggal', tgl)
+      .order('created_at', { ascending: false });
+
+    if (!headers || !headers.length) return;
+
+    // Ambil detail semua bon sekaligus
+    const fakturList = headers.map(h => h.no_faktur);
+    const { data: details } = await db
+      .from('tr_penjualan_detail')
+      .select('no_faktur, nama_barang, kode_barang, qty, harga_satuan, subtotal')
+      .in('no_faktur', fakturList);
+
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const existingFaktur = new Set(allBon.map(b => b.noFaktur));
+    let changed = false;
+
+    for (const h of headers) {
+      if (existingFaktur.has(h.no_faktur)) continue; // sudah ada
+
+      const itemDetails = (details || []).filter(d => d.no_faktur === h.no_faktur);
+      const bon = {
+        id           : Date.now() + Math.random(), // pseudo-id unik
+        noFaktur     : h.no_faktur,
+        waktu        : h.created_at || (tgl + 'T00:00:00.000Z'),
+        namaPelanggan: '(dari server)',
+        catatan      : '',
+        metode       : h.metode || 'Tunai',
+        total        : h.total_harga,
+        items        : itemDetails.map(d => ({
+          nama   : d.nama_barang,
+          harga  : d.harga_satuan,
+          qty    : String(d.qty),
+          satuan : 'pcs',
+          kode_barang: d.kode_barang,
+        })),
+        _fromServer: true, // flag: data ini dari Supabase
+      };
+      allBon.push(bon);
+      changed = true;
+    }
+
+    if (changed) localStorage.setItem('sj_bon', JSON.stringify(allBon));
+  } catch (e) {
+    console.warn('[syncBon] Gagal fetch dari Supabase:', e.message);
+  }
 }
 
 /* ===== SYNC BARANG KE MASTER ===== */
@@ -378,13 +442,22 @@ window.KASIR = {
   },
 
   filterRiwayat() {
-    const q = (document.getElementById('k-search')?.value || '').toLowerCase();
+    const q   = (document.getElementById('k-search')?.value || '').toLowerCase();
     const tgl = document.getElementById('k-filter-tgl')?.value || '';
 
+    // Jika tanggal berubah, sync ulang dari Supabase di background
+    if (tgl && tgl !== (this._lastFilterTgl || '')) {
+      this._lastFilterTgl = tgl;
+      _syncBonFromSupabase().then(() => KASIR._renderFiltered(q, tgl));
+    }
+    this._renderFiltered(q, tgl);
+  },
+
+  _renderFiltered(q, tgl) {
     const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
     let filtered = [...allBon].reverse();
 
-    if (q) filtered = filtered.filter(b => b.namaPelanggan.toLowerCase().includes(q));
+    if (q)   filtered = filtered.filter(b => (b.namaPelanggan || '').toLowerCase().includes(q));
     if (tgl) filtered = filtered.filter(b => b.waktu.slice(0, 10) === tgl);
 
     const el = document.getElementById('k-riwayat');

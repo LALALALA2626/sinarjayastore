@@ -2,15 +2,24 @@
 # Sinar Jaya Grocery — .gitignore
 # ============================================================
 
-# File konfigurasi rahasia (Supabase URL & Key)
-# Jangan pernah commit file ini ke Git!
+# ⚠️  PENTING: env.js berisi kredensial Supabase lokal.
+#     Di Netlify, gunakan Environment Variables di Dashboard.
+#     JANGAN commit file ini ke GitHub!
 env.js
 
-# Node modules (jika ada)
+# Template aman untuk referensi (boleh di-commit)
+# env.example.js  <-- ini BOLEH di-commit
+
+# Node / Netlify CLI
 node_modules/
+.netlify/
 
 # OS / Editor
 .DS_Store
 Thumbs.db
 .vscode/
 *.log
+
+# Build artifacts
+dist/
+.cache/
