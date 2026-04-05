@@ -2,7 +2,7 @@
 import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal } from '../utils.js';
 import { db, isConfigured } from '../supabase.js';
 
-const SATUANS = ['pcs', 'kg', 'gr', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
+const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
 
 let _items = [];
 let _itemId = 0;
@@ -165,17 +165,28 @@ function _renderItems() {
   if (sw) sw.style.display = 'block';
   if (cols) cols.style.display = 'grid';
 
-  el.innerHTML = _items.map(it => `
+  // Kumpulkan semua nama barang dari riwayat bon sebagai autocomplete suggestion
+  const allBonForSuggest = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+  const namaSet = new Set();
+  allBonForSuggest.forEach(b => (b.items || []).forEach(i => { if (i.nama) namaSet.add(i.nama.trim()); }));
+  const datalistOpts = [...namaSet].sort().map(n => `<option value="${_escHtml(n)}">`).join('');
+
+  el.innerHTML = `<datalist id="k-nama-list">${datalistOpts}</datalist>` +
+    _items.map(it => `
     <div style="display:grid;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6">
       <input class="ii k-nama-inp" placeholder="Nama barang"
         value="${_escHtml(it.nama)}"
+        list="k-nama-list"
         oninput="KASIR.updItem(${it.id},'nama',this.value)" autocomplete="off">
       <input class="ii" style="text-align:right" placeholder="0" type="number"
         value="${it.harga || ''}"
         oninput="KASIR.updItem(${it.id},'harga',this.value)" inputmode="numeric">
-      <input class="ii" style="text-align:center" type="number"
-        value="${it.qty}" min="0.5" step="0.5"
-        oninput="KASIR.updItem(${it.id},'qty',this.value)" inputmode="decimal">
+      <input class="ii" type="text"
+        value="${it.qty}" placeholder="1"
+        oninput="KASIR.updItem(${it.id},'qty',this.value)"
+        inputmode="decimal"
+        style="text-align:center;font-size:12px"
+        title="Bisa ketik: 1, 0.5, 1/2, 2 karton">
       <select style="padding:9px 4px;border:1.5px solid var(--border);border-radius:var(--radius-xs);
         font-size:11px;font-family:'Plus Jakarta Sans',sans-serif;color:var(--text);
         background:#fafafa;width:100%;cursor:pointer;appearance:none;-webkit-appearance:none;text-align:center"
@@ -196,15 +207,18 @@ function _renderSummary() {
   if (!rowsEl) return;
 
   const valid = _items.filter(i => i.nama || i.harga);
-  rowsEl.innerHTML = valid.map(i => `
+  rowsEl.innerHTML = valid.map(i => {
+    const numQty = _parseQtyText(i.qty);
+    return `
     <div class="sum-row">
       <span>${_escHtml(i.nama || '—')}
         <span style="opacity:.7;font-size:12px"> ${i.qty} ${i.satuan}</span>
       </span>
-      <span style="font-weight:700">${fmt(i.harga * (i.qty || 1))}</span>
-    </div>`).join('');
+      <span style="font-weight:700">${fmt(i.harga * numQty)}</span>
+    </div>`;
+  }).join('');
 
-  const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
+  const total = valid.reduce((s, i) => s + i.harga * _parseQtyText(i.qty), 0);
   if (valEl) valEl.textContent = fmt(total);
 }
 
@@ -266,22 +280,50 @@ function _showStruk(bon, isView = false) {
 }
 
 /* ===== SYNC BARANG KE MASTER ===== */
+// Hanya insert ke ms_barang jika nama belum pernah ada sama sekali.
+// Cek dilakukan batch sekali, bukan per-item, supaya tidak lambat.
 async function _syncBarangKeMaster(items) {
   if (!isConfigured || !db) return;
-  for (const item of items) {
-    if (!item.nama) continue;
-    const { data: existing } = await db
-      .from('ms_barang')
-      .select('kode_barang')
-      .ilike('nama_barang', item.nama.trim())
-      .limit(1);
-    if (!existing || existing.length === 0) {
-      const kode = _generateKode(item.nama);
+
+  const namaList = [...new Set(
+    items.map(i => (i.nama || '').trim().toLowerCase()).filter(Boolean)
+  )];
+  if (!namaList.length) return;
+
+  // Ambil semua barang yang nama-nya sudah ada (case-insensitive)
+  const { data: existing } = await db
+    .from('ms_barang')
+    .select('nama_barang')
+    .in('nama_barang', namaList.map(n =>
+      // Supabase .in() case-sensitive; kita pakai ilike lewat filter manual setelah fetch
+      items.find(i => i.nama.trim().toLowerCase() === n)?.nama.trim()
+    ).filter(Boolean));
+
+  const existingNormalized = new Set(
+    (existing || []).map(r => r.nama_barang.trim().toLowerCase())
+  );
+
+  // Insert hanya yang belum ada
+  const toInsert = items
+    .filter(i => i.nama && !existingNormalized.has(i.nama.trim().toLowerCase()))
+    .map(i => i.nama.trim());
+
+  // Deduplicate lagi (misal 2 baris bon dengan nama sama)
+  const uniqueToInsert = [...new Set(toInsert.map(n => n.toLowerCase()))]
+    .map(nl => items.find(i => i.nama.trim().toLowerCase() === nl)?.nama.trim())
+    .filter(Boolean);
+
+  for (const nama of uniqueToInsert) {
+    const kode = _generateKode(nama);
+    try {
       await db.from('ms_barang').insert({
         kode_barang: kode,
-        nama_barang: item.nama.trim(),
+        nama_barang: nama,
         harga_satuan: 0,
       });
+    } catch (e) {
+      // Abaikan jika race condition (sudah di-insert dari tab lain)
+      console.warn('_syncBarangKeMaster skip duplicate:', nama);
     }
   }
 }
@@ -305,8 +347,11 @@ window.KASIR = {
   updItem(id, field, val) {
     const item = _items.find(i => i.id === id);
     if (!item) return;
-    if (field === 'nama' || field === 'satuan') item[field] = val;
-    else item[field] = parseFloat(val) || 0;
+    if (field === 'nama' || field === 'satuan' || field === 'qty') {
+      item[field] = val; // qty disimpan sebagai teks mentah, diparse saat kalkulasi
+    } else {
+      item[field] = parseFloat(val) || 0;
+    }
     _renderSummary();
   },
 
@@ -400,8 +445,8 @@ window.KASIR = {
       return;
     }
 
-    const total = valid.reduce((s, i) => s + i.harga * (i.qty || 1), 0);
-    const totalQty = valid.reduce((s, i) => s + (i.qty || 1), 0);
+    const total = valid.reduce((s, i) => s + i.harga * _parseQtyText(i.qty), 0);
+    const totalQty = valid.reduce((s, i) => s + _parseQtyText(i.qty), 0);
     const noFaktur = generateNoFakturLocal();
     const waktu = new Date().toISOString();
     const tanggal = waktu.slice(0, 10);
@@ -431,9 +476,9 @@ window.KASIR = {
             no_faktur: noFaktur,
             kode_barang: i.kode_barang || null,
             nama_barang: i.nama,
-            qty: i.qty || 1,
+            qty: _parseQtyText(i.qty),
             harga_satuan: i.harga,
-            subtotal: i.harga * (i.qty || 1),
+            subtotal: i.harga * _parseQtyText(i.qty),
           }))
         );
         if (e2) throw e2;
@@ -660,7 +705,23 @@ if (!document.getElementById('kasir-styles')) {
   document.head.appendChild(style);
 }
 
-/* ===== LOCAL HELPER ===== */
+/* ===== LOCAL HELPERS ===== */
 function _escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * Parse qty yang bisa berupa:
+ *   - angka biasa  : "2", "0.5"
+ *   - pecahan      : "1/2", "3/4"
+ *   - teks campuran: "1 dus", "2 karton"  → ambil angka depannya
+ */
+function _parseQtyText(qtyVal) {
+  const s = String(qtyVal || '1').trim();
+  // pecahan: 1/2
+  const frac = s.match(/^(\d+)\/(\d+)/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  // angka + teks: "2 dus" → 2
+  const num = parseFloat(s);
+  return isNaN(num) || num <= 0 ? 1 : num;
 }

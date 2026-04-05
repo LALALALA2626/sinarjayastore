@@ -80,11 +80,34 @@ export function generateNoFakturLocal() {
 
 export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, items, total, metode }) {
   const line = '--------------------------------';
+
+  // Parse qty: support text format like "1/2", "2.5", "1 dus" → extract numeric part
+  function parseQty(qtyVal) {
+    const s = String(qtyVal || '1').trim();
+    // fraction like 1/2
+    const frac = s.match(/^(\d+)\/(\d+)/);
+    if (frac) return Number(frac[1]) / Number(frac[2]);
+    // plain number
+    const num = parseFloat(s);
+    return isNaN(num) ? 1 : num;
+  }
+
   const rows = items.map(i => {
-    const desc = `${i.nama} ${i.qty} ${i.satuan || 'pcs'}`;
-    const left = desc.substring(0, 18).padEnd(18);
-    const right = fmtNum(i.harga * (i.qty || 1)).padStart(12);
-    return left + right;
+    const numQty = parseQty(i.qty);
+    const qtyDisplay = String(i.qty || '1').trim(); // tampilkan teks aslinya
+    const satuan = (i.satuan || 'pcs').trim();
+    const subtotal = fmtNum(i.harga * numQty);
+
+    // Baris 1: nama barang (penuh, tidak dipotong)
+    const namaLine = String(i.nama || '').substring(0, 30);
+    // Baris 2: indented qty x harga → subtotal
+    const qtyLine = `  ${qtyDisplay} ${satuan} x ${fmtNum(i.harga)}`;
+    const rightPad = subtotal.padStart(30 - qtyLine.length > 0 ? 30 - qtyLine.length : 1);
+    const detailLine = qtyLine.length + rightPad.length <= 30
+      ? qtyLine + rightPad
+      : qtyLine + '\n' + ' '.repeat(20) + subtotal;
+
+    return namaLine + '\n' + detailLine;
   }).join('\n');
 
   return `================================
@@ -94,8 +117,6 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
 No      : ${noFaktur}
 Tgl     : ${tanggal}
 Kepada  : ${namaPelanggan}${catatan ? '\nCatatan : ' + catatan : ''}
-${line}
-Barang                     Total
 ${line}
 ${rows}
 ${line}
