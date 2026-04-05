@@ -737,12 +737,44 @@ window.KASIR = {
     const bon = allBon.find(b => b.id === id);
     if (!bon) return;
 
+    // Baris barang — bisa edit nama, qty, harga
+    const itemRows = bon.items.map((it, idx) => `
+      <tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:6px 4px;font-size:13px;color:var(--text);min-width:90px">${_escHtml(it.nama)}</td>
+        <td style="padding:6px 4px">
+          <input
+            class="ii edit-item-qty"
+            data-idx="${idx}"
+            type="text"
+            value="${_escHtml(String(it.qty))}"
+            inputmode="decimal"
+            style="width:52px;text-align:center;font-size:12px"
+            title="Format: 1 · 0.5 · 1/2 · 1/4"
+          >
+        </td>
+        <td style="padding:6px 4px">
+          <input
+            class="ii edit-item-harga"
+            data-idx="${idx}"
+            type="number"
+            value="${it.harga || 0}"
+            inputmode="numeric"
+            style="width:90px;text-align:right;font-size:12px"
+            oninput="KASIR._recalcEditTotal()"
+          >
+        </td>
+        <td style="padding:6px 4px;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap">
+          ${it.qty} ${it.satuan}
+        </td>
+      </tr>`).join('');
+
     const mc = document.getElementById('modal-container');
     mc.innerHTML = `
       <div class="modal-backdrop" onclick="KASIR._closeModal()">
-        <div class="modal-sheet" onclick="event.stopPropagation()">
+        <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
           <div class="drag-bar"></div>
           <div class="sheet-title">✏️ Edit Bon</div>
+
           <div class="field">
             <label>Ditujukan kepada</label>
             <input id="edit-nama" type="text" value="${_escHtml(bon.namaPelanggan)}" autocomplete="off">
@@ -751,20 +783,66 @@ window.KASIR = {
             <label>Catatan</label>
             <input id="edit-catatan" type="text" value="${_escHtml(bon.catatan || '')}" autocomplete="off">
           </div>
-          <div class="field" style="margin-bottom:0">
+          <div class="field">
             <label>Cara Pembayaran</label>
             <select id="edit-metode">
-              <option value="Tunai"    ${bon.metode === 'Tunai' ? 'selected' : ''}>Tunai</option>
+              <option value="Tunai"    ${bon.metode === 'Tunai'    ? 'selected' : ''}>Tunai</option>
               <option value="Transfer" ${bon.metode === 'Transfer' ? 'selected' : ''}>Transfer</option>
-              <option value="Hutang"   ${bon.metode === 'Hutang' ? 'selected' : ''}>Hutang</option>
+              <option value="Hutang"   ${bon.metode === 'Hutang'   ? 'selected' : ''}>Hutang</option>
             </select>
           </div>
-          <div style="display:flex;gap:8px;margin-top:16px">
+
+          <div style="margin-bottom:6px">
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
+              letter-spacing:.06em;margin-bottom:8px">✏️ Revisi Harga / Qty Barang</div>
+            <div style="overflow-x:auto;border-radius:10px;border:1.5px solid var(--border)">
+              <table style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="background:#f9fafb">
+                    <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.04em;text-align:left">Barang</th>
+                    <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.04em;text-align:center">Qty</th>
+                    <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.04em;text-align:right">Harga</th>
+                    <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.04em;text-align:right">Satuan</th>
+                  </tr>
+                </thead>
+                <tbody id="edit-items-body">${itemRows}</tbody>
+              </table>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;
+              margin-top:10px;padding:10px 12px;background:#f0fdf4;
+              border-radius:10px;border:1.5px solid #d1fae5">
+              <span style="font-size:13px;font-weight:600;color:#065f46">Total Baru</span>
+              <span id="edit-total-val" style="font-size:16px;font-weight:700;color:var(--green)">${fmt(bon.total)}</span>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:4px">
             <button class="btn btn-outline" style="flex:1" onclick="KASIR._closeModal()">Batal</button>
             <button class="btn btn-primary" style="flex:2" onclick="KASIR._simpanEditBon(${id})">💾 Simpan</button>
           </div>
         </div>
       </div>`;
+
+    // Hitung total awal
+    KASIR._recalcEditTotal();
+  },
+
+  // Hitung ulang total saat harga/qty diubah di modal edit
+  _recalcEditTotal() {
+    const qtyEls   = document.querySelectorAll('.edit-item-qty');
+    const hargaEls = document.querySelectorAll('.edit-item-harga');
+    let total = 0;
+    qtyEls.forEach((qEl, i) => {
+      const q = _parseQtyText(qEl.value);
+      const h = parseFloat(hargaEls[i]?.value) || 0;
+      total += q * h;
+    });
+    const el = document.getElementById('edit-total-val');
+    if (el) el.textContent = fmt(total);
   },
 
   async _simpanEditBon(id) {
@@ -772,25 +850,59 @@ window.KASIR = {
     const idx = allBon.findIndex(b => b.id === id);
     if (idx < 0) return;
 
-    const namaBaru = document.getElementById('edit-nama')?.value.trim();
+    const namaBaru    = document.getElementById('edit-nama')?.value.trim();
     const catatanBaru = document.getElementById('edit-catatan')?.value.trim();
-    const metodeBaru = document.getElementById('edit-metode')?.value;
+    const metodeBaru  = document.getElementById('edit-metode')?.value;
 
     if (!namaBaru) {
       showToast('Nama pelanggan tidak boleh kosong', 'error');
       return;
     }
 
+    // Kumpulkan harga & qty baru dari form
+    const qtyEls   = document.querySelectorAll('.edit-item-qty');
+    const hargaEls = document.querySelectorAll('.edit-item-harga');
+    const updatedItems = allBon[idx].items.map((it, i) => ({
+      ...it,
+      qty  : qtyEls[i]?.value   || it.qty,
+      harga: parseFloat(hargaEls[i]?.value) || it.harga,
+    }));
+    const totalBaru = updatedItems.reduce(
+      (s, it) => s + (parseFloat(it.harga) || 0) * _parseQtyText(it.qty), 0
+    );
+
     allBon[idx].namaPelanggan = namaBaru;
-    allBon[idx].catatan = catatanBaru;
-    allBon[idx].metode = metodeBaru;
+    allBon[idx].catatan       = catatanBaru;
+    allBon[idx].metode        = metodeBaru;
+    allBon[idx].items         = updatedItems;
+    allBon[idx].total         = totalBaru;
     localStorage.setItem('sj_bon', JSON.stringify(allBon));
 
     if (isConfigured && db) {
       try {
-        await db.from('tr_penjualan')
-          .update({ metode: metodeBaru })
-          .eq('no_faktur', allBon[idx].noFaktur);
+        const noFaktur = allBon[idx].noFaktur;
+
+        // Update header: total, metode, nama, catatan
+        await db.from('tr_penjualan').update({
+          metode        : metodeBaru,
+          nama_pelanggan: namaBaru,
+          catatan       : catatanBaru || null,
+          total_harga   : totalBaru,
+        }).eq('no_faktur', noFaktur);
+
+        // Update detail: harga & qty per baris (match by nama_barang)
+        for (const it of updatedItems) {
+          const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
+          await db.from('tr_penjualan_detail')
+            .update({
+              harga_satuan: parseFloat(it.harga) || 0,
+              qty         : _parseQtyText(it.qty),
+              subtotal    : subtotal,
+              satuan      : it.satuan || 'pcs',
+            })
+            .eq('no_faktur', noFaktur)
+            .eq('nama_barang', it.nama);
+        }
       } catch (err) {
         console.warn('Gagal update Supabase:', err.message);
       }
