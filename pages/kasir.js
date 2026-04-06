@@ -72,7 +72,10 @@ export async function renderKasir(container) {
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div class="sec-lbl" style="margin:0">Daftar Barang</div>
-          <button class="btn btn-secondary btn-sm" onclick="KASIR.addItem()">+ Tambah Barang</button>
+          <div style="display:flex; gap: 6px;">
+             <button class="btn btn-secondary btn-sm" onclick="KASIR.startScanner()" style="background:#fff; border-color:#e5e7eb; color:#1a1a1a;">📷 Scan</button>
+             <button class="btn btn-secondary btn-sm" onclick="KASIR.addItem()">+ Tambah</button>
+          </div>
         </div>
         <div class="card glass-card relative" style="padding:12px 14px">
           <div id="k-col-labels" style="display:none;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;margin-bottom:6px">
@@ -1151,6 +1154,71 @@ window.KASIR = {
   _closeModal() {
     const mc = document.getElementById('modal-container');
     if (mc) mc.innerHTML = '';
+  },
+
+  startScanner() {
+    const mc = document.getElementById('modal-container');
+    mc.innerHTML = `
+      <div class="modal-backdrop" style="background: rgba(0,0,0,0.9);">
+        <div class="modal-sheet" style="padding:16px;text-align:center;max-width:400px;margin:auto;">
+           <h3 style="margin-bottom:16px;font-size:16px;">📷 Arahkan Kamera ke Barcode</h3>
+           <div id="reader" style="width:100%; max-width:400px; margin: 0 auto; border-radius: 12px; overflow:hidden; border:2px solid var(--green);"></div>
+           <button class="btn btn-outline" style="margin-top:20px; width:100%; border-color:#e5e7eb" onclick="KASIR.stopScanner()">Tutup Kamera</button>
+        </div>
+      </div>
+    `;
+
+    try {
+      if (!window.Html5QrcodeScanner) {
+         showToast('Modul Scanner masih dimuat...', 'warning');
+         KASIR.stopScanner();
+         return;
+      }
+      const scanner = new window.Html5QrcodeScanner('reader', { 
+         fps: 10, 
+         qrbox: {width: 250, height: 150},
+         aspectRatio: 1.0,
+      }, false);
+      
+      this._scanner = scanner;
+      scanner.render((result) => {
+          KASIR.stopScanner();
+          // Bunyi beep sukses
+          try {
+             const ctx = new (window.AudioContext || window.webkitAudioContext)();
+             const osc = ctx.createOscillator(); osc.connect(ctx.destination);
+             osc.frequency.value = 800; osc.start(); setTimeout(()=>osc.stop(), 100);
+          } catch(e){}
+
+          // Cari di MS Barang
+          const found = _masterBarang.find(m => (m.kode_barang||'').toLowerCase() === result.toLowerCase());
+          if (found) {
+             // Tambahkan ke keranjang
+             KASIR.addItem();
+             const lastIdx = _items.length - 1;
+             _items[lastIdx].kode_barang = found.kode_barang;
+             _items[lastIdx].nama = found.nama_barang;
+             _items[lastIdx].harga = found.harga_satuan;
+             _items[lastIdx].defaultHarga = found.harga_satuan;
+             showToast('✅ Berhasil Scan: ' + found.nama_barang, 'success');
+             _renderItems();
+             _renderSummary();
+          } else {
+             showToast('❌ Barcode tidak dikenal. Ketik manual saja.', 'error');
+          }
+      }, (error) => {});
+    } catch(err) {
+      showToast('Kamera tidak dapat diakses.', 'error');
+      KASIR.stopScanner();
+    }
+  },
+
+  stopScanner() {
+     if(this._scanner) { 
+        this._scanner.clear().catch(e => console.log(e));
+        this._scanner = null; 
+     }
+     document.getElementById('modal-container').innerHTML = '';
   },
 
   async _printBT(text) {
