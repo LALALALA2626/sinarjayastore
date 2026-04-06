@@ -329,7 +329,7 @@ function _showStruk(bon, isView = false) {
             letter-spacing: 0.02em;
             text-align: center;
           ">
-            <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 60px; height: 60px; object-fit: contain; margin-bottom: 5px; filter: grayscale(100%);">
+            <img src="logo.jpg" alt="Logo Sinar Jaya" style="display: block; margin: 0 auto 10px auto; width: 60px; height: 60px; object-fit: contain; filter: grayscale(100%);">
             <div style="white-space: pre; text-align: left; margin: 0 auto; display: inline-block;">${struktxt}</div>
           </div>
         </div>
