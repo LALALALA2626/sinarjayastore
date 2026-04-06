@@ -173,6 +173,7 @@ function renderRekap(container, data, dari, sampai) {
     <div class="card" style="padding:0">
       <div id="lap-print-area" style="padding:16px">
         <div class="report-header">
+          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 50px; height: 50px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
           <h2>Laporan Rekap Penjualan</h2>
           <div>Toko Sinar Jaya — Sembako & Kelontong</div>
           <div>Periode: ${fmtDateShort(dari)} s/d ${fmtDateShort(sampai)}</div>
@@ -224,6 +225,7 @@ function renderDetail(container, data, dari, sampai) {
     <div class="card" style="padding:0">
       <div id="lap-print-area" style="padding:16px">
         <div class="report-header">
+          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 50px; height: 50px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
           <h2>Laporan Detail Penjualan</h2>
           <div>Toko Sinar Jaya — Sembako & Kelontong</div>
           <div>Periode: ${fmtDateShort(dari)} s/d ${fmtDateShort(sampai)}</div>

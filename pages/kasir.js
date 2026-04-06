@@ -322,13 +322,16 @@ function _showStruk(bon, isView = false) {
           font-size: 13px;
           line-height: 2;
           color: #1a1a1a;
-          white-space: pre;
           overflow-x: auto;
           margin-bottom: 14px;
           border: 1px solid #e5e7eb;
           box-shadow: 0 2px 8px rgba(0,0,0,.06);
           letter-spacing: 0.02em;
-        ">${struktxt}</div>
+          text-align: center;
+        ">
+          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 70px; height: 70px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
+          <div style="white-space: pre; text-align: left;">${struktxt}</div>
+        </div>
 
         <!-- Tombol Cetak Bluetooth -->
         ${navigator.bluetooth ? `
