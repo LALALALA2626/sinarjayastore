@@ -1,6 +1,6 @@
 // pages/kasir.js — Kasir Manual (Bon Cepat)
-import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js';
-import { db, isConfigured } from '../supabase.js';
+import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js?v=v5';
+import { db, isConfigured } from '../supabase.js?v=v5';
 
 const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
 
