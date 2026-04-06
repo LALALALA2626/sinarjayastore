@@ -1157,13 +1157,74 @@ window.KASIR = {
         _bleChar = chr;
       }
 
+      // Helper untuk mendapatkan ESC/POS byte array logo.jpg
+      const getLogoBytes = () => new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = "logo.jpg";
+        img.onload = () => {
+          const w = 240; // width gambar di nota (harus kelipatan 8)
+          const calcH = Math.round((img.height / img.width) * w);
+          const h = calcH - (calcH % 8); // round down
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, w, h);
+          // print ke kanvas sebagai B&W (grayscale)
+          ctx.filter = "grayscale(100%) contrast(150%) brightness(110%)";
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const imgData = ctx.getImageData(0, 0, w, h).data;
+          const dataBytes = [];
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x += 8) {
+              let b = 0;
+              for (let n = 0; n < 8; n++) {
+                const i = (y * w + x + n) * 4;
+                const lum = 0.299*imgData[i] + 0.587*imgData[i+1] + 0.114*imgData[i+2];
+                // jika gelap (hitam) cetak (1)
+                if (imgData[i+3] > 128 && lum < 128) {
+                  b |= (1 << (7 - n));
+                }
+              }
+              dataBytes.push(b);
+            }
+          }
+          const xL = (w / 8) % 256;
+          const xH = Math.floor((w / 8) / 256);
+          const yL = h % 256;
+          const yH = Math.floor(h / 256);
+          // ESC a 1 (center), GS v 0 0 xL xH yL yH, ESC a 0 (left)
+          resolve(new Uint8Array([
+            27, 97, 1, 
+            29, 118, 48, 0, xL, xH, yL, yH, 
+            ...dataBytes, 
+            27, 97, 0, 10
+          ]));
+        };
+        img.onerror = () => resolve(null);
+      });
+
       const ESC = String.fromCharCode(27);
       const GS  = String.fromCharCode(29);
-      const full = ESC + '@' + ESC + 'a\x00' + text + '\n\n\n' + GS + 'V\x41\x03';
-      const data = new TextEncoder().encode(full);
+      // ESC @ (Reset), ESC a 1 (center)
+      const textFull = ESC + '@' + ESC + 'a\x01\n' + text + '\n\n\n' + GS + 'V\x41\x03';
+      const textBytes = new TextEncoder().encode(textFull);
 
-      for (let i = 0; i < data.length; i += 200) {
-        await _bleChar.writeValue(data.slice(i, i + 200));
+      let finalData = textBytes;
+      try {
+        const logoData = await getLogoBytes();
+        if (logoData) {
+          const combine = new Uint8Array(logoData.length + textBytes.length);
+          combine.set(logoData);
+          combine.set(textBytes, logoData.length);
+          finalData = combine;
+        }
+      } catch (err) {}
+
+      for (let i = 0; i < finalData.length; i += 200) {
+        await _bleChar.writeValue(finalData.slice(i, i + 200));
       }
 
       const dot = document.getElementById('k-bdot');
