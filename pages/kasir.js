@@ -643,6 +643,73 @@ window.KASIR = {
     }
 
     const total = valid.reduce((s, i) => s + i.harga * _parseQtyText(i.qty), 0);
+
+    if (_metode === 'Tunai') {
+      KASIR._showBayarModal(total, nama, catatan, valid);
+    } else {
+      KASIR._prosesSimpanBon(total, nama, catatan, valid, total, 0);
+    }
+  },
+
+  _showBayarModal(total, nama, catatan, valid) {
+    const mc = document.getElementById('modal-container');
+    mc.innerHTML = `
+      <div class="modal-backdrop" onclick="KASIR._closeModal()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+          <div class="drag-bar"></div>
+          <div class="sheet-title" style="text-align:center">💵 Pembayaran Tunai</div>
+          <div style="text-align:center; margin-bottom: 24px;">
+            <div style="font-size:13px; color:var(--muted)">Total Belanja</div>
+            <div style="font-size:36px; font-weight:800; color:var(--green)">${fmt(total)}</div>
+          </div>
+          <div class="field">
+            <label style="text-align:center; font-size: 14px;">Nominal Diterima (Rp)</label>
+            <input id="k-bayar-inp" type="number" inputmode="numeric" placeholder="${total}"
+              oninput="KASIR._calcKembalian(${total})" style="font-size: 24px; font-weight: 700; text-align:center; padding: 16px;">
+          </div>
+          <div style="display:flex; justify-content:center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${total}; KASIR._calcKembalian(${total})">Pas</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=50000; KASIR._calcKembalian(${total})">50k</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=100000; KASIR._calcKembalian(${total})">100k</button>
+          </div>
+          <div style="padding: 18px; background: var(--green-light); border-radius: var(--radius-sm); margin-bottom: 24px; text-align: center;">
+            <div style="font-size:14px; color:var(--green-dark); font-weight: 700;">Kembalian</div>
+            <div id="k-kembalian-val" style="font-size:32px; font-weight:800; color:var(--green-dark)">Rp 0</div>
+          </div>
+          <button class="btn btn-primary" onclick="KASIR._submitBayar(${total}, '${_escHtml(nama)}', '${_escHtml(catatan)}')">✅ Simpan & Cetak Bon</button>
+        </div>
+      </div>
+    `;
+    setTimeout(() => { document.getElementById('k-bayar-inp')?.focus(); }, 100);
+  },
+
+  _calcKembalian(total) {
+    const byrStr = document.getElementById('k-bayar-inp').value;
+    const byr = byrStr ? parseFloat(byrStr) : 0;
+    const k = byr - total;
+    const el = document.getElementById('k-kembalian-val');
+    if (k < 0) {
+      el.textContent = 'Kurang ' + fmt(Math.abs(k));
+      el.style.color = 'var(--red)';
+    } else {
+      el.textContent = fmt(k);
+      el.style.color = 'var(--green-dark)';
+    }
+  },
+
+  _submitBayar(total, nama, catatan) {
+    const valid = _items.filter(i => i.nama);
+    const byrStr = document.getElementById('k-bayar-inp').value;
+    const byr = byrStr ? parseFloat(byrStr) : total;
+    if (byr < total) {
+      showToast('Uang kurang!', 'error');
+      return;
+    }
+    KASIR._closeModal();
+    KASIR._prosesSimpanBon(total, nama, catatan, valid, byr, byr - total);
+  },
+
+  async _prosesSimpanBon(total, nama, catatan, valid, bayar, kembali) {
     const totalQty = valid.reduce((s, i) => s + _parseQtyText(i.qty), 0);
     const noFaktur = generateNoFakturLocal();
     const waktu = new Date().toISOString();
@@ -651,7 +718,8 @@ window.KASIR = {
     const bon = {
       id: Date.now(), noFaktur, waktu,
       namaPelanggan: nama, catatan,
-      items: valid, total, metode: _metode
+      items: valid, total, metode: _metode,
+      bayar, kembali
     };
 
     const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');

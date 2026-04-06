@@ -78,7 +78,7 @@ export function generateNoFakturLocal() {
   return `SJ-${dateKey}-${String(counter).padStart(4, '0')}`;
 }
 
-export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, items, total, metode }) {
+export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, items, total, metode, bayar, kembali }) {
   const W   = 32;               // lebar thermal 58mm = 32 karakter
   const EQ  = '='.repeat(W);   // garis tebal header/footer
   const SEP = '-'.repeat(W);   // garis tipis pemisah item
@@ -181,6 +181,16 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
   const totalFmt    = 'Rp ' + fmtNum(total);
   const totalLine   = lr('TOTAL', totalFmt);
   const metodeLine  = lr('Pembayaran', metode);
+  let bayarLine = '';
+  let kembaliLine = '';
+  if (metode === 'Tunai' && typeof bayar !== 'undefined') {
+    bayarLine = '\n' + lr('Tunai', 'Rp ' + fmtNum(bayar));
+    if (kembali > 0) {
+      kembaliLine = '\n' + lr('Kembali', 'Rp ' + fmtNum(kembali));
+    } else {
+      kembaliLine = '\n' + lr('Kembali', 'Uang Pas');
+    }
+  }
 
   /* ── Susun bon ───────────────────────── */
   return [
@@ -198,7 +208,7 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
     '',
     SEP,
     totalLine,
-    metodeLine,
+    metodeLine + bayarLine + kembaliLine,
     EQ,
     center('Terima kasih atas'),
     center('kepercayaan Anda!'),

@@ -99,10 +99,13 @@ export async function renderDashboard(container) {
         </div>`}
 
         <!-- TOTAL BANNER -->
-        <div class="card" style="background:var(--green);border:none">
-          <div style="color:rgba(255,255,255,.7);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Total Penjualan</div>
-          <div style="color:#fff;font-size:30px;font-weight:800">${fmt(totalHarga)}</div>
-          <div style="color:rgba(255,255,255,.65);font-size:12px;margin-top:4px">${fmtDate(todayStr)}</div>
+        <div class="card" style="background:linear-gradient(135deg, #10b981, #059669);border:none;box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">
+          <div style="color:rgba(255,255,255,.9);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Total Penjualan</div>
+          <div style="color:#fff;font-size:32px;font-weight:800">${fmt(totalHarga)}</div>
+          <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px">${fmtDate(todayStr)}</div>
+          <button style="margin-top: 15px; width: 100%; padding: 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; backdrop-filter: blur(4px);" onclick="DASHBOARD.kirimWA(${totalHarga}, ${jmlFaktur}, ${totalQty})">
+            📲 Kirim Laporan ke WA
+          </button>
         </div>
 
         <!-- HUTANG AKTIF -->
@@ -227,6 +230,13 @@ function _initDashboardGlobal(container) {
       // Refresh dashboard
       await renderDashboard(container);
     },
+
+    kirimWA(totalHarga, jmlFaktur, totalQty) {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const text = `*Laporan Sinar Jaya* 🛒\\nTanggal: ${fmtDate(todayKey)}\\n\\n*Penjualan Hari Ini*\\nTotal: *${fmt(totalHarga)}*\\nTransaksi: ${jmlFaktur} struk\\nBarang Terjual: ${totalQty} item\\n\\nTerima kasih! 🙏`;
+      const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+      window.open(url, '_blank');
+    }
   };
 }
 
