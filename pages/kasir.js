@@ -314,23 +314,24 @@ function _showStruk(bon, isView = false) {
         <div class="sheet-title">${isView ? '🧾 Detail Bon' : '✅ Bon Berhasil Dibuat'}</div>
 
         <!-- Preview Bon seperti kertas struk -->
-        <div style="
-          font-family: 'Courier New', Courier, monospace;
-          background: #fff;
-          border-radius: 10px;
-          padding: 18px 16px;
-          font-size: 13px;
-          line-height: 2;
-          color: #1a1a1a;
-          overflow-x: auto;
-          margin-bottom: 14px;
-          border: 1px solid #e5e7eb;
-          box-shadow: 0 2px 8px rgba(0,0,0,.06);
-          letter-spacing: 0.02em;
-          text-align: center;
-        ">
-          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 70px; height: 70px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
-          <div style="white-space: pre; text-align: left;">${struktxt}</div>
+        <div style="text-align:center; width:100%; overflow-x:auto; margin-bottom: 14px;">
+          <div style="
+            display: inline-block;
+            font-family: 'Courier New', Courier, monospace;
+            background: #fff;
+            border-radius: 10px;
+            padding: 18px 16px;
+            font-size: 13.5px;
+            line-height: 1.8;
+            color: #1a1a1a;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(0,0,0,.06);
+            letter-spacing: 0.02em;
+            text-align: center;
+          ">
+            <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 60px; height: 60px; object-fit: contain; margin-bottom: 5px; filter: grayscale(100%);">
+            <div style="white-space: pre; text-align: left; margin: 0 auto; display: inline-block;">${struktxt}</div>
+          </div>
         </div>
 
         <!-- Tombol Cetak Bluetooth -->
