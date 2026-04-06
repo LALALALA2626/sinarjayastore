@@ -46,6 +46,22 @@ export function escAttr(s) {
   return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
+export function similarity(s1, s2) {
+  if (!s1 || !s2) return 0;
+  function getBigrams(str) {
+    const s = String(str).toLowerCase().replace(/\s+/g, '');
+    const bi = new Set();
+    for(let i = 0; i < s.length - 1; i++) bi.add(s.slice(i, i + 2));
+    return bi;
+  }
+  const b1 = getBigrams(s1);
+  const b2 = getBigrams(s2);
+  if (!b1.size || !b2.size) return 0;
+  let intersection = 0;
+  for (let x of b1) if (b2.has(x)) intersection++;
+  return (2.0 * intersection) / (b1.size + b2.size);
+}
+
 let _toastTimer = null;
 export function showToast(message, type = 'success') {
   const existing = document.getElementById('sj-toast');
@@ -142,8 +158,8 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
     const hargaFmt   = fmtNum(i.harga);
     const subtotal   = fmtNum(i.harga * numQty);
 
-    // Baris 1: nama barang (auto-wrap jika panjang)
-    const namaLine   = wrapText(i.nama || '-', W);
+    // Baris 1: nama barang dengan penomoran item (auto-wrap jika panjang)
+    const namaLine   = wrapText(`${idx + 1}. ` + (i.nama || '-'), W);
 
     // Baris 2: qty × harga → subtotal
     const detail     = `  ${qtyDisplay} ${satuan} x ${hargaFmt}`;
@@ -183,6 +199,7 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
   const metodeLine  = lr('Pembayaran', metode);
   let bayarLine = '';
   let kembaliLine = '';
+
   if (metode === 'Tunai' && typeof bayar !== 'undefined') {
     bayarLine = '\n' + lr('Tunai', 'Rp ' + fmtNum(bayar));
     if (kembali > 0) {
@@ -190,6 +207,9 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
     } else {
       kembaliLine = '\n' + lr('Kembali', 'Uang Pas');
     }
+  } else if (metode === 'Hutang' && typeof bayar !== 'undefined' && bayar > 0) {
+    bayarLine = '\n' + lr('Dibayar (DP)', 'Rp ' + fmtNum(bayar));
+    kembaliLine = '\n' + lr('Sisa Hutang', 'Rp ' + fmtNum(kembali));
   }
 
   /* ── Susun bon ───────────────────────── */

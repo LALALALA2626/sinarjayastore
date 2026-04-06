@@ -1,5 +1,5 @@
 // pages/kasir.js — Kasir Manual (Bon Cepat)
-import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal } from '../utils.js';
+import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js';
 import { db, isConfigured } from '../supabase.js';
 
 const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
@@ -702,38 +702,38 @@ window.KASIR = {
     }
 
     const total = valid.reduce((s, i) => s + i.harga * _parseQtyText(i.qty), 0);
-
-    if (_metode === 'Tunai') {
-      KASIR._showBayarModal(total, nama, catatan, valid);
-    } else {
-      KASIR._prosesSimpanBon(total, nama, catatan, valid, total, 0);
-    }
+    // Selalu tampilkan modal untuk semua metode, agar DP & nominal tercatat dengan baik
+    KASIR._showBayarModal(total, nama, catatan, valid);
   },
 
   _showBayarModal(total, nama, catatan, valid) {
+    const isHutang = _metode === 'Hutang';
+    const title = isHutang ? '📋 Pembayaran Hutang (Bisa DP)' : (_metode === 'Transfer' ? '📲 Pembayaran Transfer' : '💵 Pembayaran Tunai');
+    
     const mc = document.getElementById('modal-container');
     mc.innerHTML = `
       <div class="modal-backdrop" onclick="KASIR._closeModal()">
         <div class="modal-sheet" onclick="event.stopPropagation()">
           <div class="drag-bar"></div>
-          <div class="sheet-title" style="text-align:center">💵 Pembayaran Tunai</div>
+          <div class="sheet-title" style="text-align:center">${title}</div>
           <div style="text-align:center; margin-bottom: 24px;">
             <div style="font-size:13px; color:var(--muted)">Total Belanja</div>
             <div style="font-size:36px; font-weight:800; color:var(--green)">${fmt(total)}</div>
           </div>
           <div class="field">
-            <label style="text-align:center; font-size: 14px;">Nominal Diterima (Rp)</label>
-            <input id="k-bayar-inp" type="number" inputmode="numeric" placeholder="${total}"
+            <label style="text-align:center; font-size: 14px;">${isHutang ? 'Nominal DP / Dibayar Awal (Kosongkan jika 0)' : 'Nominal Diterima (Rp)'}</label>
+            <input id="k-bayar-inp" type="number" inputmode="numeric" placeholder="${isHutang ? '0' : total}"
               oninput="KASIR._calcKembalian(${total})" style="font-size: 24px; font-weight: 700; text-align:center; padding: 16px;">
           </div>
           <div style="display:flex; justify-content:center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
-            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${total}; KASIR._calcKembalian(${total})">Pas</button>
+            ${isHutang ? `<button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=0; KASIR._calcKembalian(${total})">Tanpa DP (0)</button>` : ''}
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${total}; KASIR._calcKembalian(${total})">${isHutang ? 'Lunas' : 'Pas'}</button>
             <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=50000; KASIR._calcKembalian(${total})">50k</button>
             <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=100000; KASIR._calcKembalian(${total})">100k</button>
           </div>
           <div style="padding: 18px; background: var(--green-light); border-radius: var(--radius-sm); margin-bottom: 24px; text-align: center;">
-            <div style="font-size:14px; color:var(--green-dark); font-weight: 700;">Kembalian</div>
-            <div id="k-kembalian-val" style="font-size:32px; font-weight:800; color:var(--green-dark)">Rp 0</div>
+            <div id="k-kembalian-lbl" style="font-size:14px; color:var(--green-dark); font-weight: 700;">${isHutang ? 'Sisa Hutang' : 'Kembalian'}</div>
+            <div id="k-kembalian-val" style="font-size:32px; font-weight:800; color:var(--green-dark)">${isHutang ? fmt(total) : 'Rp 0'}</div>
           </div>
           <button class="btn btn-primary" onclick="KASIR._submitBayar(${total}, '${_escHtml(nama)}', '${_escHtml(catatan)}')">✅ Simpan & Cetak Bon</button>
         </div>
@@ -747,25 +747,48 @@ window.KASIR = {
     const byr = byrStr ? parseFloat(byrStr) : 0;
     const k = byr - total;
     const el = document.getElementById('k-kembalian-val');
-    if (k < 0) {
-      el.textContent = 'Kurang ' + fmt(Math.abs(k));
-      el.style.color = 'var(--red)';
+    const lbl = document.getElementById('k-kembalian-lbl');
+    
+    if (_metode === 'Hutang') {
+      if (k < 0) {
+        lbl.textContent = 'Sisa Hutang';
+        el.textContent = fmt(Math.abs(k));
+        el.style.color = 'var(--red)';
+      } else {
+        lbl.textContent = 'Kembalian';
+        el.textContent = fmt(k);
+        el.style.color = 'var(--green-dark)';
+      }
     } else {
-      el.textContent = fmt(k);
-      el.style.color = 'var(--green-dark)';
+      if (k < 0) {
+        lbl.textContent = 'Kurang Bayar';
+        el.textContent = fmt(Math.abs(k));
+        el.style.color = 'var(--red)';
+      } else {
+        lbl.textContent = 'Kembalian';
+        el.textContent = fmt(k);
+        el.style.color = 'var(--green-dark)';
+      }
     }
   },
 
   _submitBayar(total, nama, catatan) {
     const valid = _items.filter(i => i.nama);
     const byrStr = document.getElementById('k-bayar-inp').value;
-    const byr = byrStr ? parseFloat(byrStr) : total;
-    if (byr < total) {
+    // Jika tidak diisi & metode bukan hutang, anggap bayar pas (total). 
+    // Jika Hutang, default DP adalah 0.
+    const defaultByr = _metode === 'Hutang' ? 0 : total;
+    const byr = byrStr ? parseFloat(byrStr) : defaultByr;
+    
+    if (_metode !== 'Hutang' && byr < total) {
       showToast('Uang kurang!', 'error');
       return;
     }
+    
     KASIR._closeModal();
-    KASIR._prosesSimpanBon(total, nama, catatan, valid, byr, byr - total);
+    // Jika Hutang, selisih kurang = Sisa Hutang. Kalau lunas = Kembalian 0
+    const kembali = (_metode === 'Hutang' && byr < total) ? Math.abs(total - byr) : (byr - total);
+    KASIR._prosesSimpanBon(total, nama, catatan, valid, byr, kembali);
   },
 
   async _prosesSimpanBon(total, nama, catatan, valid, bayar, kembali) {
@@ -802,9 +825,14 @@ window.KASIR = {
         // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
         for (const i of valid) {
           if (!i.kode_barang) {
-            const matchCache = _masterBarang.find(mb => mb.nama_barang.toLowerCase() === i.nama.toLowerCase());
+            const matchCache = _masterBarang.find(mb => {
+              const exact = mb.nama_barang.toLowerCase() === i.nama.toLowerCase();
+              return exact || similarity(mb.nama_barang, i.nama) > 0.82;
+            });
             if (matchCache) {
               i.kode_barang = matchCache.kode_barang;
+              // Set namabaarang dari cache agar tersinkronisasi dan tidak typo (GudangGaram => Gudang Garam Filter)
+              i.nama = matchCache.nama_barang;
             } else {
               const newKode = _generateKode(i.nama);
               i.kode_barang = newKode;
@@ -835,14 +863,17 @@ window.KASIR = {
 
         // Auto-catat hutang jika metode Hutang
         if (_metode === 'Hutang') {
-          await db.from('tr_hutang').insert({
-            no_faktur     : noFaktur,
-            nama_pelanggan: nama,
-            jumlah        : total,
-            catatan       : catatan || null,
-            tanggal       : tanggal,
-            status        : 'belum_lunas',
-          });
+          const sisaHutang = (bayar < total) ? Math.abs(total - bayar) : 0;
+          if (sisaHutang > 0) {
+            await db.from('tr_hutang').insert({
+              no_faktur     : noFaktur,
+              nama_pelanggan: nama,
+              jumlah        : sisaHutang,
+              catatan       : (catatan ? catatan + ' ' : '') + `(Sisa hasil DP Rp ${fmtNum(bayar)})`,
+              tanggal       : tanggal,
+              status        : 'belum_lunas',
+            });
+          }
         }
 
         showToast('Bon tersimpan & masuk laporan ✅', 'success');
