@@ -711,9 +711,23 @@ window.KASIR = {
     const isHutang = _metode === 'Hutang';
     const title = isHutang ? '📋 Pembayaran Hutang (Bisa DP)' : (_metode === 'Transfer' ? '📲 Pembayaran Transfer' : '💵 Pembayaran Tunai');
     
+    // Hitung tombol pecahan uang cerdas (Smart Cash Chips)
+    const smarts = [
+      Math.ceil(total / 5000) * 5000,
+      Math.ceil(total / 10000) * 10000,
+      Math.ceil(total / 20000) * 20000,
+      Math.ceil(total / 50000) * 50000,
+      Math.ceil(total / 100000) * 100000,
+    ].filter(x => x > total);
+    // filter unik & urutkan, ambil maks 3
+    const smartM = [...new Set(smarts)].sort((a,b)=>a-b).slice(0, 3);
+    const smartHTML = smartM.map(val => 
+      `<button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${val}; KASIR._calcKembalian(${total})">${fmt(val).replace('Rp ','')}</button>`
+    ).join('');
+
     const mc = document.getElementById('modal-container');
     mc.innerHTML = `
-      <div class="modal-backdrop" onclick="KASIR._closeModal()">
+      <div class="modal-backdrop" id="k-modal" onclick="KASIR._closeModal()">
         <div class="modal-sheet" onclick="event.stopPropagation()">
           <div class="drag-bar"></div>
           <div class="sheet-title" style="text-align:center">${title}</div>
@@ -729,8 +743,7 @@ window.KASIR = {
           <div style="display:flex; justify-content:center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
             ${isHutang ? `<button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=0; KASIR._calcKembalian(${total})">Tanpa DP (0)</button>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${total}; KASIR._calcKembalian(${total})">${isHutang ? 'Lunas' : 'Pas'}</button>
-            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=50000; KASIR._calcKembalian(${total})">50k</button>
-            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=100000; KASIR._calcKembalian(${total})">100k</button>
+            ${smartHTML}
           </div>
           <div style="padding: 18px; background: var(--green-light); border-radius: var(--radius-sm); margin-bottom: 24px; text-align: center;">
             <div id="k-kembalian-lbl" style="font-size:14px; color:var(--green-dark); font-weight: 700;">${isHutang ? 'Sisa Hutang' : 'Kembalian'}</div>

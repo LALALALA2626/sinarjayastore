@@ -13,13 +13,20 @@ export async function renderDashboard(container) {
   try {
     const todayStr = today();
 
-    // Fetch penjualan hari ini
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    const last7Str = d.toISOString().slice(0, 10);
+
+    // Fetch penjualan 7 hari terakhir
     const { data: penjualan, error: e1 } = await db
       .from('tr_penjualan')
       .select('total_harga, total_qty, no_faktur, tanggal')
-      .eq('tanggal', todayStr)
+      .gte('tanggal', last7Str)
       .order('created_at', { ascending: false });
     if (e1) throw e1;
+    
+    // Filter khusus hari ini untuk stat cards
+    const hariIni = penjualan.filter(p => p.tanggal === todayStr);
 
     // Fetch hutang aktif
     const { data: hutangData, error: e2 } = await db
@@ -29,9 +36,9 @@ export async function renderDashboard(container) {
       .order('created_at', { ascending: false });
     if (e2) throw e2;
 
-    const totalHarga = penjualan.reduce((s, r) => s + Number(r.total_harga), 0);
-    const totalQty = penjualan.reduce((s, r) => s + Number(r.total_qty), 0);
-    const jmlFaktur = penjualan.length;
+    const totalHarga = hariIni.reduce((s, r) => s + Number(r.total_harga), 0);
+    const totalQty = hariIni.reduce((s, r) => s + Number(r.total_qty), 0);
+    const jmlFaktur = hariIni.length;
     const totalHutang = (hutangData || []).reduce((s, h) => s + Number(h.jumlah), 0);
 
     container.innerHTML = `
@@ -65,6 +72,12 @@ export async function renderDashboard(container) {
             </div>
           </div>
         </div>
+        
+        <!-- GRAFIK TREN 7 HARI -->
+        <div class="card">
+          <div class="sec-lbl">Grafik Tren Penjualan (7 Hari)</div>
+          <canvas id="salesChart" height="150"></canvas>
+        </div>
 
         <!-- FAKTUR TERKINI -->
         ${jmlFaktur > 0 ? `
@@ -80,7 +93,7 @@ export async function renderDashboard(container) {
                 </tr>
               </thead>
               <tbody>
-                ${penjualan.slice(0, 5).map(p => `
+                ${hariIni.slice(0, 5).map(p => `
                   <tr>
                     <td><span style="font-family:monospace;font-size:12px">${p.no_faktur}</span></td>
                     <td class="r" style="font-weight:700;color:var(--green)">${fmt(p.total_harga)}</td>
@@ -177,6 +190,37 @@ export async function renderDashboard(container) {
 
     // Pasang global DASHBOARD setelah render
     _initDashboardGlobal(container);
+
+    // Render Grafik
+    setTimeout(() => {
+       const ctx = document.getElementById('salesChart');
+       if(!ctx) return;
+       const agg = {};
+       for(let i=6; i>=0; i--) {
+         const past = new Date(); past.setDate(past.getDate() - i);
+         agg[past.toISOString().slice(0,10)] = 0;
+       }
+       for(let p of penjualan) {
+         if(agg[p.tanggal] !== undefined) agg[p.tanggal] += Number(p.total_harga);
+       }
+       const labels = Object.keys(agg).map(d => {
+         const pts = d.split('-'); return pts[2]+'/'+pts[1];
+       });
+       if(window.Chart) {
+           new Chart(ctx, {
+               type: 'line',
+               data: {
+                   labels: labels,
+                   datasets: [{
+                       label: 'Rp', data: Object.values(agg),
+                       borderColor: '#10b981', tension: 0.4, fill: true,
+                       backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                   }]
+               },
+               options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+           });
+       }
+    }, 200);
 
   } catch (err) {
     container.innerHTML = `
