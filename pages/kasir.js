@@ -826,9 +826,20 @@ window.KASIR = {
         // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
         for (const i of valid) {
           if (!i.kode_barang) {
+            const typedVal = i.nama.toLowerCase().replace(/\s+/g,'');
             const matchCache = _masterBarang.find(mb => {
-              const exact = mb.nama_barang.toLowerCase() === i.nama.toLowerCase();
-              return exact || similarity(mb.nama_barang, i.nama) > 0.82;
+              const lowerMB = mb.nama_barang.toLowerCase();
+              const exact = lowerMB === i.nama.toLowerCase();
+              if (exact) return true;
+              
+              // Fuzzy Similarity Treshold 65% (Diturunkan agar lebih luwes mendeteksi typo berantakan)
+              if (similarity(mb.nama_barang, i.nama) > 0.65) return true;
+              
+              // Cek Singkatan Huruf Awal (misal: "GF" untuk "Gudang Garam Filter")
+              const abbrev = lowerMB.split(/\s+/).filter(Boolean).map(w => w[0]).join('');
+              if (abbrev === i.nama.toLowerCase() || abbrev === typedVal) return true;
+
+              return false;
             });
             if (matchCache) {
               i.kode_barang = matchCache.kode_barang;
@@ -1209,8 +1220,8 @@ window.KASIR = {
 
       const ESC = String.fromCharCode(27);
       const GS  = String.fromCharCode(29);
-      // ESC @ (Reset), ESC a 1 (center)
-      const textFull = ESC + '@' + ESC + 'a\x01\n' + text + '\n\n\n' + GS + 'V\x41\x03';
+      // ESC @ (Reset), ESC a 0 (left)
+      const textFull = ESC + '@' + ESC + 'a\x00\n' + text + '\n\n\n' + GS + 'V\x41\x03';
       const textBytes = new TextEncoder().encode(textFull);
 
       let finalData = textBytes;
