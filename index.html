@@ -16,25 +16,18 @@
         !window.SUPABASE_URL.includes('YOUR_PROJECT_ID');
 
       if (!alreadySet) {
-        // Coba Vercel API route dulu, lalu fallback ke Netlify Function
-        const endpoints = [
-          '/api/env-config',
-          '/.netlify/functions/env-config',
-        ];
-        for (const endpoint of endpoints) {
-          try {
-            const r = await fetch(endpoint);
-            if (r.ok) {
-              const cfg = await r.json();
-              if (cfg.url && cfg.key) {
-                window.SUPABASE_URL      = cfg.url;
-                window.SUPABASE_ANON_KEY = cfg.key;
-                break; // berhasil, tidak perlu coba endpoint lain
-              }
+        // Ambil konfigurasi dari Vercel Serverless Function (production)
+        try {
+          const r = await fetch('/api/env-config');
+          if (r.ok) {
+            const cfg = await r.json();
+            if (cfg.url && cfg.key) {
+              window.SUPABASE_URL      = cfg.url;
+              window.SUPABASE_ANON_KEY = cfg.key;
             }
-          } catch (e) {
-            // endpoint tidak tersedia, coba berikutnya
           }
+        } catch (e) {
+          console.warn('[Config] Gagal mengambil konfigurasi env dari Vercel API.');
         }
       }
     })();
