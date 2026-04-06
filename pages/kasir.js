@@ -8,6 +8,7 @@ let _items = [];
 let _itemId = 0;
 let _metode = 'Tunai';
 let _bleChar = null;
+let _masterBarang = []; // Cache ms_barang untuk autocomplete
 
 /* ===== GENERATE KODE BARANG ===== */
 function _generateKode(nama) {
@@ -28,13 +29,18 @@ export async function renderKasir(container) {
   _itemId = 0;
   _metode = 'Tunai';
 
+  if (isConfigured && db) {
+    const { data } = await db.from('ms_barang').select('kode_barang, nama_barang, harga_satuan');
+    if (data) _masterBarang = data;
+  }
+
   const todayKey = new Date().toISOString().slice(0, 10);
   const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
   const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
   const revHari = bonHari.reduce((s, b) => s + b.total, 0);
 
   container.innerHTML = `
-    <div class="gap-12">
+    <div class="gap-12 glass-container">
 
       <div class="stats-grid" style="margin-bottom:0">
         <div class="stat-card">
@@ -49,17 +55,17 @@ export async function renderKasir(container) {
         </div>
       </div>
 
-      <div class="card">
+      <div class="card glass-card">
         <div class="sec-lbl">Informasi Bon</div>
         <div class="field">
           <label>Ditujukan kepada *</label>
           <input id="k-nama" type="text" placeholder="Nama pelanggan..."
-            autocomplete="off" autocorrect="off" autocapitalize="words">
+            autocomplete="off" autocorrect="off" autocapitalize="words" class="glass-input">
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Catatan (opsional)</label>
           <input id="k-catatan" type="text"
-            placeholder="Mis: hutang, titip barang..." autocomplete="off">
+            placeholder="Mis: hutang, titip barang..." autocomplete="off" class="glass-input">
         </div>
       </div>
 
@@ -68,7 +74,7 @@ export async function renderKasir(container) {
           <div class="sec-lbl" style="margin:0">Daftar Barang</div>
           <button class="btn btn-secondary btn-sm" onclick="KASIR.addItem()">+ Tambah Barang</button>
         </div>
-        <div class="card" style="padding:12px 14px">
+        <div class="card glass-card relative" style="padding:12px 14px">
           <div id="k-col-labels" style="display:none;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;margin-bottom:6px">
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Nama barang</div>
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:right">Harga</div>
@@ -77,6 +83,7 @@ export async function renderKasir(container) {
             <div></div>
           </div>
           <div id="k-items-list"></div>
+          <div id="k-autocomplete-dropdown" class="glass-dropdown"></div>
           <div id="k-empty" class="empty" style="padding:20px 0">
             <div class="empty-ico">🛒</div>
             <div>Belum ada barang.<br>Tap <b>+ Tambah Barang</b> untuk mulai.</div>
@@ -123,7 +130,7 @@ export async function renderKasir(container) {
 
       <div id="k-summary-wrap" style="display:none">
         <div class="sec-lbl">Ringkasan Belanja</div>
-        <div class="summary-box">
+        <div class="summary-box glass-card">
           <div id="k-sum-rows"></div>
           <hr class="sum-divider">
           <div class="sum-total">
@@ -136,14 +143,14 @@ export async function renderKasir(container) {
       <div>
         <div class="sec-lbl">Cara Pembayaran</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-          <button class="k-metode active" id="km-Tunai"    onclick="KASIR.setMetode('Tunai')">💵<br>Tunai</button>
-          <button class="k-metode"        id="km-Transfer" onclick="KASIR.setMetode('Transfer')">📲<br>Transfer</button>
-          <button class="k-metode"        id="km-Hutang"   onclick="KASIR.setMetode('Hutang')">📋<br>Hutang</button>
+          <button class="k-metode active glass-btn" id="km-Tunai"    onclick="KASIR.setMetode('Tunai')">💵<br>Tunai</button>
+          <button class="k-metode glass-btn"        id="km-Transfer" onclick="KASIR.setMetode('Transfer')">📲<br>Transfer</button>
+          <button class="k-metode glass-btn"        id="km-Hutang"   onclick="KASIR.setMetode('Hutang')">📋<br>Hutang</button>
         </div>
       </div>
 
-      <button class="btn btn-primary" onclick="KASIR.buatBon()">✅ Buat Bon &amp; Cetak</button>
-      <button class="btn btn-outline"  onclick="KASIR.reset()">🔄 Bersihkan &amp; Mulai Baru</button>
+      <button class="btn btn-primary glass-btn-primary mt-12" onclick="KASIR.buatBon()">✅ Buat Bon &amp; Cetak</button>
+      <button class="btn btn-outline glass-btn-outline"  onclick="KASIR.reset()">🔄 Bersihkan &amp; Mulai Baru</button>
 
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -190,18 +197,14 @@ function _renderItems() {
   if (sw) sw.style.display = 'block';
   if (cols) cols.style.display = 'grid';
 
-  // Datalist dari local product cache (bukan dari bon history)
-  const cache = _loadProductCache();
-  const datalistOpts = cache.map(p => `<option value="${_escHtml(p.nama)}">`).join('');
-
-  el.innerHTML = `<datalist id="k-nama-list">${datalistOpts}</datalist>` +
-    _items.map(it => `
+  // Hapus datalist lama, kita pakai custom dropdown
+  el.innerHTML = _items.map(it => `
     <div data-item-id="${it.id}" style="display:grid;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6">
       <input class="ii k-nama-inp" placeholder="Nama barang"
         value="${_escHtml(it.nama)}"
-        list="k-nama-list"
-        oninput="KASIR.updItem(${it.id},'nama',this.value)"
-        onchange="KASIR.autoFill(${it.id},this.value)"
+        oninput="KASIR.updItem(${it.id},'nama',this.value); KASIR.searchProduct(this, ${it.id})"
+        onfocus="KASIR.searchProduct(this, ${it.id})"
+        onblur="setTimeout(() => KASIR.hideDropdown(), 200)"
         autocomplete="off">
       <input class="ii k-harga-inp" style="text-align:right" placeholder="0" type="number"
         value="${it.harga || ''}"
@@ -453,7 +456,7 @@ function _saveProductsToCache(items) {
 /* ===== GLOBAL KASIR OBJECT ===== */
 window.KASIR = {
   addItem() {
-    _items.push({ id: ++_itemId, nama: '', harga: 0, qty: 1, satuan: 'pcs' });
+    _items.push({ id: ++_itemId, kode_barang: null, nama: '', harga: 0, qty: 1, satuan: 'pcs' });
     _renderItems();
     setTimeout(() => {
       const inputs = document.querySelectorAll('.k-nama-inp');
@@ -510,23 +513,76 @@ window.KASIR = {
     }, 60);
   },
 
-  autoFill(id, nama) {
+  searchProduct(inputEl, id) {
+    const val = inputEl.value.toLowerCase().trim();
+    const dropdown = document.getElementById('k-autocomplete-dropdown');
+    
+    if (!val || _masterBarang.length === 0) {
+      if (dropdown) dropdown.style.display = 'none';
+      return;
+    }
+
+    // Fuzzy matching:
+    // 1. Termasuk substring
+    // 2. Termasuk singkatan huruf pertama (GF -> Gudang Garam Filter)
+    const results = _masterBarang.filter(b => {
+      const nama = b.nama_barang.toLowerCase();
+      if (nama.includes(val)) return true;
+      const abbrev = nama.split(/\s+/).map(w => w[0]).join('');
+      if (abbrev.includes(val)) return true;
+      return false;
+    }).slice(0, 8); // MAX 8 results
+
+    if (results.length === 0) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    // Position dropdown below the input
+    const rect = inputEl.getBoundingClientRect();
+    const listRect = document.getElementById('k-items-list').getBoundingClientRect();
+    
+    dropdown.style.top = (rect.bottom - listRect.top + 5) + 'px';
+    dropdown.style.left = (rect.left - listRect.left) + 'px';
+    dropdown.style.width = Math.max(rect.width, 240) + 'px';
+    dropdown.style.display = 'block';
+
+    dropdown.innerHTML = results.map(b => `
+      <div class="dd-item" onclick="KASIR.selectProduct(${id}, '${_escHtml(b.kode_barang)}', '${_escHtml(b.nama_barang)}', ${b.harga_satuan})">
+        <div class="dd-nama">${_escHtml(b.nama_barang)}</div>
+        <div class="dd-harga">${fmt(b.harga_satuan)}</div>
+      </div>
+    `).join('');
+  },
+
+  selectProduct(id, kode, nama, harga) {
     const item = _items.find(i => i.id === id);
     if (!item) return;
-    const cache = _loadProductCache();
-    const match = cache.find(p => p.nama.toLowerCase() === nama.trim().toLowerCase());
-    if (!match) return;
-    item.harga  = match.harga;
-    item.satuan = match.satuan || 'pcs';
-    // Update DOM langsung (tanpa full re-render agar fokus tidak hilang)
-    const row = document.querySelector(`[data-item-id="${id}"]`);
-    if (row) {
-      const hEl = row.querySelector('.k-harga-inp');
-      if (hEl) hEl.value = match.harga;
-      const sEl = row.querySelector('.k-satuan-sel');
-      if (sEl) sEl.value = match.satuan || 'pcs';
-    }
-    _renderSummary();
+    item.kode_barang = kode;
+    item.nama = nama;
+    item.harga = harga;
+    
+    KASIR.hideDropdown();
+    _renderItems();
+    
+    // Focus onto the qty element or trigger re-render
+    setTimeout(() => {
+      const row = document.querySelector(`[data-item-id="${id}"]`);
+      if(row) {
+        const qtyEl = row.querySelectorAll('.ii')[2];
+        if (qtyEl) qtyEl.focus();
+      }
+    }, 50);
+  },
+
+  hideDropdown() {
+    const d = document.getElementById('k-autocomplete-dropdown');
+    if (d) d.style.display = 'none';
+  },
+
+  autoFill(id, nama) {
+    // Dipanggil dari cache jika fallback datalist, tapi sudah pakai searchProduct.
+    // Menjaga kompatibilitas.
   },
 
   async hapusBonHariIni() {
@@ -728,7 +784,7 @@ window.KASIR = {
 
     if (isConfigured && db) {
       try {
-        // Simpan header bon — termasuk nama_pelanggan, catatan, metode
+        // 1. Simpan header bon — termasuk nama_pelanggan, catatan, metode
         const { error: e1 } = await db.from('tr_penjualan').insert({
           no_faktur     : noFaktur,
           tanggal       : tanggal,
@@ -740,6 +796,27 @@ window.KASIR = {
         });
         if (e1) throw e1;
 
+        // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
+        for (const i of valid) {
+          if (!i.kode_barang) {
+            const matchCache = _masterBarang.find(mb => mb.nama_barang.toLowerCase() === i.nama.toLowerCase());
+            if (matchCache) {
+              i.kode_barang = matchCache.kode_barang;
+            } else {
+              const newKode = _generateKode(i.nama);
+              i.kode_barang = newKode;
+              await db.from('ms_barang').insert({
+                kode_barang: newKode,
+                nama_barang: i.nama,
+                harga_satuan: i.harga
+              });
+              // Tambahkan ke lokal masterList agar autocomplete langsung ada
+              _masterBarang.push({ kode_barang: newKode, nama_barang: i.nama, harga_satuan: i.harga });
+            }
+          }
+        }
+
+        // 3. Simpan detail
         const { error: e2 } = await db.from('tr_penjualan_detail').insert(
           valid.map(i => ({
             no_faktur   : noFaktur,
@@ -1076,20 +1153,35 @@ if (!document.getElementById('kasir-styles')) {
   style.textContent = `
     .k-metode {
       padding: 12px 6px; border-radius: 13px;
-      border: 1.5px solid var(--border); background: var(--white);
+      border: 1.5px solid var(--border); background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(8px);
       font-size: 13px; font-weight: 600; cursor: pointer;
       text-align: center; color: var(--muted);
       font-family: 'Plus Jakarta Sans', sans-serif; line-height: 1.6;
-      transition: all .15s;
+      transition: all .2s ease;
     }
     .k-metode.active {
-      border-color: var(--green); background: var(--green-light); color: var(--green);
+      border-color: var(--green); background: rgba(236, 253, 245, 0.8); color: var(--green-dark); font-weight: 700; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
     }
     .ble-dot { width:10px; height:10px; border-radius:50%; background:#d1d5db; flex-shrink:0; }
-    .ble-dot.on { background:#22c55e; }
+    .ble-dot.on { background:#22c55e; box-shadow: 0 0 8px #22c55e; }
     .bottom-nav { grid-template-columns: repeat(6, 1fr) !important; }
     .nav-item   { font-size: 8.5px !important; }
     .nav-icon   { width: 19px !important; height: 19px !important; }
+    
+    .glass-dropdown {
+      position: absolute; z-index: 999; background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px); border-radius: 12px;
+      border: 1px solid rgba(229, 231, 235, 0.5);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1); display: none; overflow: hidden;
+      max-height: 250px; overflow-y: auto;
+    }
+    .dd-item {
+      padding: 10px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer;
+      display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;
+    }
+    .dd-item:hover { background: #f0fdf4; }
+    .dd-nama { font-weight: 600; font-size: 13px; color: var(--text); }
+    .dd-harga { font-weight: 700; font-size: 12px; color: var(--green); }
   `;
   document.head.appendChild(style);
 }
