@@ -1,10 +1,10 @@
 // app.js — SPA Router & Navigation
-import { renderDashboard } from './pages/dashboard.js?v=v6';
-import { renderKasir } from './pages/kasir.js?v=v6';
-import { renderMasterBarang } from './pages/master-barang.js?v=v6';
-import { renderTransaksi } from './pages/transaksi.js?v=v6';
-import { renderLaporan } from './pages/laporan.js?v=v6';
-import { renderHutang } from './pages/hutang.js?v=v6';
+import { renderDashboard } from './pages/dashboard.js?v=v7';
+import { renderKasir } from './pages/kasir.js?v=v7';
+import { renderMasterBarang } from './pages/master-barang.js?v=v7';
+import { renderTransaksi } from './pages/transaksi.js?v=v7';
+import { renderLaporan } from './pages/laporan.js?v=v7';
+import { renderHutang } from './pages/hutang.js?v=v7';
 
 const ROUTES = {
   'dashboard': renderDashboard,
