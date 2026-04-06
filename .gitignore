@@ -28,3 +28,6 @@ dist/
 cert.pem
 key.pem
 gen-cert.js
+
+.vercel
+.env*.local
