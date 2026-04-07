@@ -1,9 +1,9 @@
 // pages/transaksi.js
 import { db, isConfigured } from '../supabase.js';
-import { fmt, today, showToast, buildStrukText } from '../utils.js';
+import { fmt, today, showToast, buildStrukText, escHtml, escAttr } from '../utils.js';
 
-let _barangList = [];  // cache dari ms_barang
-let _items = [];  // item keranjang saat ini
+let _barangList = [];
+let _items = [];
 let _itemId = 0;
 
 export async function renderTransaksi(container) {
@@ -19,7 +19,6 @@ export async function renderTransaksi(container) {
     return;
   }
 
-  // Load barang list
   const { data, error } = await db.from('ms_barang').select('*').order('nama_barang');
   if (error) {
     container.innerHTML = `<div class="card"><div class="empty"><div class="empty-ico">⚠️</div><div>${error.message}</div></div></div>`;
@@ -31,16 +30,14 @@ export async function renderTransaksi(container) {
   document.getElementById('trx-add-btn').addEventListener('click', addItem);
   document.getElementById('trx-save-btn').addEventListener('click', simpanPenjualan);
   document.getElementById('trx-reset-btn').addEventListener('click', resetForm);
-
   renderItems();
 }
 
-/* ===== PAGE HTML ===== */
 function buildPageHTML() {
   return `
     <div class="gap-12">
       <div class="card">
-        <div class="items-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div class="sec-lbl" style="margin:0">Daftar Barang</div>
           <button id="trx-add-btn" class="btn btn-secondary btn-sm">+ Tambah Barang</button>
         </div>
@@ -66,9 +63,8 @@ function buildPageHTML() {
     </div>`;
 }
 
-/* ===== ITEM MANAGEMENT ===== */
 function addItem() {
-  if (_barangList.length === 0) {
+  if (!_barangList.length) {
     showToast('Belum ada data barang. Tambahkan di menu Master terlebih dahulu.', 'warning');
     return;
   }
@@ -87,8 +83,7 @@ window.TRX = {
     resetForm();
   },
   _shareWA(text) {
-    const encoded = encodeURIComponent(text);
-    window.open(`https://wa.me/?text=${encoded}`, '_blank');
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
   },
   removeItem,
   onBarangChange(id, kode) {
@@ -112,19 +107,17 @@ window.TRX = {
     item.qty = parseFloat(val) || 0;
     item.subtotal = item.qty * item.harga_satuan;
     renderSummary();
-    // update subtotal display hanya
     const el = document.getElementById(`sub-${id}`);
     if (el) el.textContent = fmt(item.subtotal);
   },
 };
 
-/* ===== RENDER ITEMS ===== */
 function renderItems() {
   const el = document.getElementById('trx-items-list');
   const sw = document.getElementById('trx-summary-wrap');
   if (!el) return;
 
-  if (_items.length === 0) {
+  if (!_items.length) {
     el.innerHTML = `
       <div class="empty" style="padding:20px 0">
         <div class="empty-ico">🛒</div>
@@ -141,11 +134,9 @@ function renderItems() {
   el.innerHTML = _items.map(it => `
     <div class="item-row" id="row-${it.id}">
       <div>
-        <select class="ii" style="margin-bottom:6px"
-          onchange="TRX.onBarangChange(${it.id}, this.value)">
+        <select class="ii" style="margin-bottom:6px" onchange="TRX.onBarangChange(${it.id}, this.value)">
           <option value="">— Pilih Barang —</option>
-          ${opts.replace(`value="${escAttr(it.kode_barang)}"`,
-    `value="${escAttr(it.kode_barang)}" selected`)}
+          ${opts.replace(`value="${escAttr(it.kode_barang)}"`, `value="${escAttr(it.kode_barang)}" selected`)}
         </select>
         ${it.kode_barang ? `<div class="item-sub">Harga satuan: <b>${fmt(it.harga_satuan)}</b></div>` : ''}
       </div>
@@ -164,7 +155,6 @@ function renderItems() {
   renderSummary();
 }
 
-/* ===== RENDER SUMMARY ===== */
 function renderSummary() {
   const rowsEl = document.getElementById('trx-sum-rows');
   const valEl = document.getElementById('trx-sum-val');
@@ -181,26 +171,21 @@ function renderSummary() {
   if (valEl) valEl.textContent = fmt(total);
 }
 
-/* ===== GENERATE NO FAKTUR ===== */
 async function generateNoFaktur() {
-  const todayStr = today();                       // YYYY-MM-DD
-  const todayKey = todayStr.replace(/-/g, '');    // YYYYMMDD
+  const todayStr = today();
+  const todayKey = todayStr.replace(/-/g, '');
 
-  // Baca tanggal sistem di tm_module
   const { data: tglData } = await db
     .from('tm_module').select('value').eq('id', 'tanggal_sistem').single();
 
   let counter;
-
   if (!tglData || tglData.value !== todayStr) {
-    // Hari baru / close toko → reset counter
     counter = 1;
     await db.from('tm_module').upsert([
       { id: 'tanggal_sistem', value: todayStr, updated_at: new Date().toISOString() },
       { id: 'faktur_counter', value: String(counter), updated_at: new Date().toISOString() },
     ]);
   } else {
-    // Hari sama → increment
     const { data: ctrData } = await db
       .from('tm_module').select('value').eq('id', 'faktur_counter').single();
     counter = parseInt(ctrData?.value || '0') + 1;
@@ -212,7 +197,6 @@ async function generateNoFaktur() {
   return `SJ-${todayKey}-${String(counter).padStart(4, '0')}`;
 }
 
-/* ===== SIMPAN PENJUALAN ===== */
 async function simpanPenjualan() {
   const valid = _items.filter(i => i.kode_barang && i.qty > 0);
   if (!valid.length) {
@@ -230,7 +214,6 @@ async function simpanPenjualan() {
     const totalQty = valid.reduce((s, i) => s + i.qty, 0);
     const todayStr = today();
 
-    // Simpan header
     const { error: e1 } = await db.from('tr_penjualan').insert({
       no_faktur: noFaktur,
       tanggal: todayStr,
@@ -239,7 +222,6 @@ async function simpanPenjualan() {
     });
     if (e1) throw e1;
 
-    // Simpan detail
     const { error: e2 } = await db.from('tr_penjualan_detail').insert(
       valid.map(i => ({
         no_faktur: noFaktur,
@@ -262,23 +244,15 @@ async function simpanPenjualan() {
   }
 }
 
-/* ===== SUCCESS MODAL ===== */
 function showSuccessModal(noFaktur, items, total) {
   const strukItems = items.map(i => ({
-    nama: i.nama_barang,
-    qty: String(i.qty),
-    harga: i.harga_satuan,
-    satuan: 'pcs'
+    nama: i.nama_barang, qty: String(i.qty), harga: i.harga_satuan, satuan: 'pcs'
   }));
 
   const struktxt = buildStrukText({
-    noFaktur: noFaktur,
-    tanggal: new Date().toISOString(),
+    noFaktur, tanggal: new Date().toISOString(),
     namaPelanggan: 'Pelanggan (Transaksi)',
-    catatan: '',
-    items: strukItems,
-    total: total,
-    metode: 'Tunai',
+    catatan: '', items: strukItems, total, metode: 'Tunai',
   });
   const safeTxt = struktxt.replace(/`/g, "'");
 
@@ -289,7 +263,8 @@ function showSuccessModal(noFaktur, items, total) {
         <div class="drag-bar"></div>
         <div class="sheet-title">Penjualan Berhasil ✅</div>
         <div style="text-align:center;margin-bottom:16px">
-          <div style="font-family:monospace;font-size:18px;font-weight:800;color:var(--green);background:var(--green-light);padding:10px 20px;border-radius:10px;display:inline-block">
+          <div style="font-family:monospace;font-size:18px;font-weight:800;color:var(--green);
+            background:var(--green-light);padding:10px 20px;border-radius:10px;display:inline-block">
             ${noFaktur}
           </div>
           <div style="margin-top:8px;font-size:13px;color:var(--muted)">No. Faktur Penjualan</div>
@@ -306,30 +281,22 @@ function showSuccessModal(noFaktur, items, total) {
             <div class="sum-total-val">${fmt(total)}</div>
           </div>
         </div>
-
         <button style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
-          padding:14px 16px;background:#eff6ff; border:1.5px solid #bfdbfe;border-radius:13px;
-          font-size:14px;font-weight:600;cursor:pointer; color:#1e40af;font-family:'Plus Jakarta Sans',sans-serif;
-          margin-bottom:10px"
+          padding:14px 16px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:13px;
+          font-size:14px;font-weight:600;cursor:pointer;color:#1e40af;
+          font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:10px"
           onclick="TRX._shareWA(\`${safeTxt}\`)">
           💬 Bagikan Bon ke WhatsApp
         </button>
-
         <button class="btn btn-primary" onclick="TRX.closeModal()">🆕 Transaksi Baru</button>
       </div>
     </div>`;
   document.getElementById('trx-modal').addEventListener('click', () => TRX.closeModal());
 }
 
-
-/* ===== RESET ===== */
 function resetForm() {
   _items = [];
   _itemId = 0;
   renderItems();
   renderSummary();
 }
-
-/* ===== HELPERS ===== */
-function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function escAttr(s) { return String(s).replace(/'/g, "\\'"); }

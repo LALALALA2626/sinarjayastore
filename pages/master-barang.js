@@ -19,14 +19,10 @@ export async function renderMasterBarang(container) {
   }
 
   container.innerHTML = getFormHTML(false, {}) + '<div class="mt-12" id="mb-table-wrap"></div>';
-
-  // Pasang event handler form setelah render
   document.getElementById('mb-form').addEventListener('submit', handleSave);
-
   await loadTable();
 }
 
-/* ===== FORM HTML ===== */
 function getFormHTML(editMode, barang = {}) {
   return `
     <div class="card" id="mb-form-card">
@@ -55,7 +51,9 @@ function getFormHTML(editMode, barang = {}) {
             value="${barang.isi_per_pack || ''}" inputmode="decimal" oninput="MB.calcModal()">
         </div>
         <div class="field">
-          <label>Harga Jual per Unit (Rp) * <span id="mb-modal-hint" style="margin-left:6px;font-size:11px;font-weight:600;color:var(--green)"></span></label>
+          <label>Harga Jual per Unit (Rp) *
+            <span id="mb-modal-hint" style="margin-left:6px;font-size:11px;font-weight:600;color:var(--green)"></span>
+          </label>
           <input id="mb-harga" type="number" placeholder="0" min="0" step="100"
             value="${barang.harga_satuan || ''}" required inputmode="numeric">
         </div>
@@ -69,7 +67,6 @@ function getFormHTML(editMode, barang = {}) {
     </div>`;
 }
 
-/* ===== LOAD TABLE ===== */
 async function loadTable() {
   let wrap = document.getElementById('mb-table-wrap');
   if (!wrap) {
@@ -81,10 +78,7 @@ async function loadTable() {
 
   wrap.innerHTML = '';
 
-  const { data, error } = await db
-    .from('ms_barang')
-    .select('*')
-    .order('nama_barang');
+  const { data, error } = await db.from('ms_barang').select('*').order('nama_barang');
 
   if (error) {
     wrap.innerHTML = `<div class="card"><div class="empty"><div class="empty-ico">⚠️</div><div>${error.message}</div></div></div>`;
@@ -137,7 +131,6 @@ async function loadTable() {
     ${tableHTML}`;
 }
 
-/* ===== HANDLE SAVE (Tambah / Update) ===== */
 async function handleSave(e) {
   e.preventDefault();
   const kode = document.getElementById('mb-kode').value.trim().toUpperCase();
@@ -156,34 +149,28 @@ async function handleSave(e) {
   try {
     if (_editMode) {
       let payload = { nama_barang: nama, harga_satuan: harga };
-      if (!isNaN(hargaMasuk) && hargaMasuk !== null) payload.harga_masuk = hargaMasuk;
-      if (!isNaN(isiPerPack) && isiPerPack !== null) payload.isi_per_pack = isiPerPack;
+      if (hargaMasuk) payload.harga_masuk = hargaMasuk;
+      if (isiPerPack) payload.isi_per_pack = isiPerPack;
 
-      // Coba update lengkap
       let { error } = await db.from('ms_barang').update(payload).eq('kode_barang', kode);
-
-      // Fallback jika tidak ada kolom di DB
       if (error && error.message && error.message.includes('does not exist')) {
-        showToast('Info: Kolom harga_masuk belum ada di Database', 'warning');
-        const { error: err2 } = await db.from('ms_barang').update({ nama_barang: nama, harga_satuan: harga }).eq('kode_barang', kode);
+        const { error: err2 } = await db.from('ms_barang')
+          .update({ nama_barang: nama, harga_satuan: harga }).eq('kode_barang', kode);
         error = err2;
       }
-      
       if (error) throw error;
       showToast(`Barang ${nama} berhasil diupdate ✅`);
     } else {
       let payload = { kode_barang: kode, nama_barang: nama, harga_satuan: harga };
-      if (!isNaN(hargaMasuk) && hargaMasuk !== null) payload.harga_masuk = hargaMasuk;
-      if (!isNaN(isiPerPack) && isiPerPack !== null) payload.isi_per_pack = isiPerPack;
+      if (hargaMasuk) payload.harga_masuk = hargaMasuk;
+      if (isiPerPack) payload.isi_per_pack = isiPerPack;
 
       let { error } = await db.from('ms_barang').insert(payload);
-
       if (error && error.message && error.message.includes('does not exist')) {
-        showToast('Info: Kolom harga_masuk belum ada di Database', 'warning');
-        const { error: err2 } = await db.from('ms_barang').insert({ kode_barang: kode, nama_barang: nama, harga_satuan: harga });
+        const { error: err2 } = await db.from('ms_barang')
+          .insert({ kode_barang: kode, nama_barang: nama, harga_satuan: harga });
         error = err2;
       }
-
       if (error) {
         if (error.code === '23505') { showToast('Kode barang sudah digunakan', 'error'); return; }
         throw error;
@@ -199,15 +186,13 @@ async function handleSave(e) {
   }
 }
 
-/* ===== GLOBAL MB OBJECT (untuk onclick di HTML string) ===== */
 window.MB = {
   calcModal() {
     const hk = parseFloat(document.getElementById('mb-harga-masuk')?.value) || 0;
     const isi = parseFloat(document.getElementById('mb-isi')?.value) || 0;
     const hint = document.getElementById('mb-modal-hint');
     if (hk > 0 && isi > 0 && hint) {
-      const r_modal = Math.ceil(hk / isi);
-      hint.textContent = `(Modal per Unit: Rp ${r_modal.toLocaleString('id-ID')})`;
+      hint.textContent = `(Modal per Unit: Rp ${Math.ceil(hk / isi).toLocaleString('id-ID')})`;
     } else if (hint) {
       hint.textContent = '';
     }
@@ -216,11 +201,9 @@ window.MB = {
   async editBarang(kode) {
     const { data, error } = await db.from('ms_barang').select('*').eq('kode_barang', kode).single();
     if (error) { showToast('Gagal memuat data', 'error'); return; }
-
     _editMode = true;
     const formCard = document.getElementById('mb-form-card');
     formCard.outerHTML = getFormHTML(true, data);
-
     document.getElementById('mb-form').addEventListener('submit', handleSave);
     document.getElementById('mb-form-card').scrollIntoView({ behavior: 'smooth' });
     MB.calcModal();
@@ -252,6 +235,3 @@ window.MB = {
     await loadTable();
   },
 };
-
-/* ===== HELPERS ===== */
-// escHtml and escAttr imported from utils.js

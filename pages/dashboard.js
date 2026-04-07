@@ -17,18 +17,15 @@ export async function renderDashboard(container) {
     d.setDate(d.getDate() - 6);
     const last7Str = d.toISOString().slice(0, 10);
 
-    // Fetch penjualan 7 hari terakhir
     const { data: penjualan, error: e1 } = await db
       .from('tr_penjualan')
       .select('total_harga, total_qty, no_faktur, tanggal')
       .gte('tanggal', last7Str)
       .order('created_at', { ascending: false });
     if (e1) throw e1;
-    
-    // Filter khusus hari ini untuk stat cards
+
     const hariIni = penjualan.filter(p => p.tanggal === todayStr);
 
-    // Fetch hutang aktif
     const { data: hutangData, error: e2 } = await db
       .from('tr_hutang')
       .select('*')
@@ -44,7 +41,6 @@ export async function renderDashboard(container) {
     container.innerHTML = `
       <div class="gap-12">
 
-        <!-- STATS -->
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">💰</div>
@@ -58,7 +54,6 @@ export async function renderDashboard(container) {
           </div>
         </div>
 
-        <!-- RINGKASAN -->
         <div class="card">
           <div class="sec-lbl">Ringkasan — ${fmtDate(todayStr)}</div>
           <div class="stats-grid" style="margin-bottom:0">
@@ -72,14 +67,12 @@ export async function renderDashboard(container) {
             </div>
           </div>
         </div>
-        
-        <!-- GRAFIK TREN 7 HARI -->
+
         <div class="card">
           <div class="sec-lbl">Grafik Tren Penjualan (7 Hari)</div>
           <canvas id="salesChart" height="150"></canvas>
         </div>
 
-        <!-- FAKTUR TERKINI -->
         ${jmlFaktur > 0 ? `
         <div class="card">
           <div class="sec-lbl">Faktur Terkini</div>
@@ -111,23 +104,19 @@ export async function renderDashboard(container) {
           </div>
         </div>`}
 
-        <!-- TOTAL BANNER -->
-        <div class="card" style="background:linear-gradient(135deg, #10b981, #059669);border:none;box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">
+        <div class="card" style="background:linear-gradient(135deg, #10b981, #059669);border:none;box-shadow:0 4px 15px rgba(16,185,129,0.4)">
           <div style="color:rgba(255,255,255,.9);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px">Total Penjualan</div>
           <div style="color:#fff;font-size:32px;font-weight:800">${fmt(totalHarga)}</div>
           <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px">${fmtDate(todayStr)}</div>
-          <button style="margin-top: 15px; width: 100%; padding: 12px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 12px; color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; backdrop-filter: blur(4px);" onclick="DASHBOARD.kirimWA(${totalHarga}, ${jmlFaktur}, ${totalQty})">
+          <button style="margin-top:15px;width:100%;padding:12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:12px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;" onclick="DASHBOARD.kirimWA(${totalHarga}, ${jmlFaktur}, ${totalQty})">
             📲 Kirim Laporan ke WA
           </button>
         </div>
 
-        <!-- HUTANG AKTIF -->
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div class="sec-lbl" style="margin:0">Hutang Aktif</div>
-            <button class="btn btn-secondary btn-sm" onclick="navigateTo('hutang')">
-              Kelola Hutang →
-            </button>
+            <button class="btn btn-secondary btn-sm" onclick="navigateTo('hutang')">Kelola Hutang →</button>
           </div>
 
           ${!hutangData || hutangData.length === 0 ? `
@@ -137,7 +126,6 @@ export async function renderDashboard(container) {
                 <div>Tidak ada hutang aktif.</div>
               </div>
             </div>` : `
-
             <div class="card" style="background:#fef2f2;border-color:#fecaca;padding:14px;margin-bottom:10px">
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div>
@@ -147,7 +135,6 @@ export async function renderDashboard(container) {
                 <div style="font-size:22px;font-weight:800;color:#dc2626">${fmt(totalHutang)}</div>
               </div>
             </div>
-
             ${hutangData.slice(0, 3).map(h => `
               <div class="card" style="margin-bottom:8px;padding:12px 14px">
                 <div style="display:flex;justify-content:space-between;align-items:center">
@@ -157,69 +144,66 @@ export async function renderDashboard(container) {
                   </div>
                   <div style="text-align:right">
                     <div style="font-size:16px;font-weight:700;color:#dc2626">${fmt(h.jumlah)}</div>
-                    <button class="btn btn-secondary btn-sm" style="margin-top:4px;font-size:11px;padding:4px 10px"
-                      onclick="navigateTo('hutang')">Lunas →</button>
+                    <button class="btn btn-secondary btn-sm" style="margin-top:4px;font-size:11px;padding:4px 10px" onclick="navigateTo('hutang')">Lunas →</button>
                   </div>
                 </div>
               </div>`).join('')}
-
             ${hutangData.length > 3 ? `
               <div style="text-align:center;margin-top:4px">
-                <button class="btn btn-outline" onclick="navigateTo('hutang')"
-                  style="font-size:13px;padding:10px">
+                <button class="btn btn-outline" onclick="navigateTo('hutang')" style="font-size:13px;padding:10px">
                   Lihat semua ${hutangData.length} hutang →
                 </button>
               </div>` : ''}
           `}
         </div>
 
-        <!-- RESET SECTION -->
         <div class="card" style="border-color:#fecaca;background:#fef2f2">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div>
               <div style="font-size:13px;font-weight:700;color:#991b1b">🗑️ Reset Data Hari Ini</div>
               <div style="font-size:11px;color:#dc2626;margin-top:2px">Hapus semua bon + transaksi hari ini (lokal &amp; server)</div>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="DASHBOARD.resetHariIni()" style="white-space:nowrap">
-              Reset Sekarang
-            </button>
+            <button class="btn btn-danger btn-sm" onclick="DASHBOARD.resetHariIni()" style="white-space:nowrap">Reset Sekarang</button>
           </div>
         </div>
 
       </div>`;
 
-    // Pasang global DASHBOARD setelah render
     _initDashboardGlobal(container);
 
-    // Render Grafik
     setTimeout(() => {
-       const ctx = document.getElementById('salesChart');
-       if(!ctx) return;
-       const agg = {};
-       for(let i=6; i>=0; i--) {
-         const past = new Date(); past.setDate(past.getDate() - i);
-         agg[past.toISOString().slice(0,10)] = 0;
-       }
-       for(let p of penjualan) {
-         if(agg[p.tanggal] !== undefined) agg[p.tanggal] += Number(p.total_harga);
-       }
-       const labels = Object.keys(agg).map(d => {
-         const pts = d.split('-'); return pts[2]+'/'+pts[1];
-       });
-       if(window.Chart) {
-           new Chart(ctx, {
-               type: 'line',
-               data: {
-                   labels: labels,
-                   datasets: [{
-                       label: 'Rp', data: Object.values(agg),
-                       borderColor: '#10b981', tension: 0.4, fill: true,
-                       backgroundColor: 'rgba(16, 185, 129, 0.1)'
-                   }]
-               },
-               options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-           });
-       }
+      const ctx = document.getElementById('salesChart');
+      if (!ctx) return;
+      const agg = {};
+      for (let i = 6; i >= 0; i--) {
+        const past = new Date();
+        past.setDate(past.getDate() - i);
+        agg[past.toISOString().slice(0, 10)] = 0;
+      }
+      for (let p of penjualan) {
+        if (agg[p.tanggal] !== undefined) agg[p.tanggal] += Number(p.total_harga);
+      }
+      const labels = Object.keys(agg).map(d => {
+        const pts = d.split('-');
+        return pts[2] + '/' + pts[1];
+      });
+      if (window.Chart) {
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              label: 'Rp', data: Object.values(agg),
+              borderColor: '#10b981', tension: 0.4, fill: true,
+              backgroundColor: 'rgba(16, 185, 129, 0.1)'
+            }]
+          },
+          options: {
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      }
     }, 200);
 
   } catch (err) {
@@ -233,12 +217,11 @@ export async function renderDashboard(container) {
   }
 }
 
-/* ===== GLOBAL DASHBOARD OBJECT ===== */
 function _initDashboardGlobal(container) {
   window.DASHBOARD = {
     async resetHariIni() {
       const todayKey = new Date().toISOString().slice(0, 10);
-      const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+      const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
       const todayBon = allBon.filter(b => b.waktu && b.waktu.slice(0, 10) === todayKey);
 
       if (!todayBon.length && !isConfigured) {
@@ -246,16 +229,12 @@ function _initDashboardGlobal(container) {
         return;
       }
 
-      if (!confirm(`Reset SEMUA data hari ini (${todayKey})?\n\n• ${todayBon.length} bon lokal\n• Transaksi di server\n• Cache produk tersimpan\n\nData tidak bisa dikembalikan!`)) return;
+      if (!confirm(`Reset SEMUA data hari ini (${todayKey})?\n\n• ${todayBon.length} bon lokal\n• Transaksi di server\n\nData tidak bisa dikembalikan!`)) return;
 
-      // 1. Hapus dari localStorage
       const newBon = allBon.filter(b => !b.waktu || b.waktu.slice(0, 10) !== todayKey);
       localStorage.setItem('sj_bon', JSON.stringify(newBon));
-
-      // 2. Hapus cache produk
       localStorage.removeItem('sj_produk_cache');
 
-      // 3. Hapus dari Supabase
       if (isConfigured && db) {
         try {
           const fakturList = todayBon.map(b => b.noFaktur).filter(Boolean);
@@ -271,15 +250,13 @@ function _initDashboardGlobal(container) {
       }
 
       showToast('Data hari ini berhasil direset ✅', 'success');
-      // Refresh dashboard
       await renderDashboard(container);
     },
 
     kirimWA(totalHarga, jmlFaktur, totalQty) {
       const todayKey = new Date().toISOString().slice(0, 10);
-      const text = `*Laporan Sinar Jaya* 🛒\\nTanggal: ${fmtDate(todayKey)}\\n\\n*Penjualan Hari Ini*\\nTotal: *${fmt(totalHarga)}*\\nTransaksi: ${jmlFaktur} struk\\nBarang Terjual: ${totalQty} item\\n\\nTerima kasih! 🙏`;
-      const url = 'https://wa.me/?text=' + encodeURIComponent(text);
-      window.open(url, '_blank');
+      const text = `*Laporan Sinar Jaya* 🛒\nTanggal: ${fmtDate(todayKey)}\n\n*Penjualan Hari Ini*\nTotal: *${fmt(totalHarga)}*\nTransaksi: ${jmlFaktur} struk\nBarang Terjual: ${totalQty} item\n\nTerima kasih! 🙏`;
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
     }
   };
 }
@@ -288,8 +265,7 @@ function notConfiguredHTML() {
   return `
     <div class="cfg-warn">
       <h3>⚙️ Supabase Belum Dikonfigurasi</h3>
-      <p>Edit file <code>env.js</code> dan isi <code>SUPABASE_URL</code>
-      serta <code>SUPABASE_ANON_KEY</code>.</p>
+      <p>Edit file <code>env.js</code> dan isi <code>SUPABASE_URL</code> serta <code>SUPABASE_ANON_KEY</code>.</p>
     </div>`;
 }
 

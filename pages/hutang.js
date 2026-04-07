@@ -1,13 +1,11 @@
 // pages/hutang.js — Manajemen Hutang Pelanggan
-import { fmt, fmtDate, fmtDateShort, showToast } from '../utils.js';
+import { fmt, fmtDate, showToast } from '../utils.js';
 import { db, isConfigured } from '../supabase.js';
 
-/* ===== ENTRY POINT ===== */
 export async function renderHutang(container) {
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="gap-12">
 
-      <!-- STATS -->
       <div class="stats-grid" style="margin-bottom:0">
         <div class="stat-card">
           <div class="stat-icon">📋</div>
@@ -21,13 +19,11 @@ export async function renderHutang(container) {
         </div>
       </div>
 
-      <!-- FORM TAMBAH HUTANG -->
       <div class="card">
         <div class="sec-lbl">➕ Catat Hutang Baru</div>
         <div class="field">
           <label>Nama Pelanggan *</label>
-          <input id="h-nama" type="text" placeholder="Nama pelanggan..."
-            autocomplete="off" autocapitalize="words">
+          <input id="h-nama" type="text" placeholder="Nama pelanggan..." autocomplete="off" autocapitalize="words">
         </div>
         <div class="field">
           <label>Jumlah Hutang (Rp) *</label>
@@ -35,19 +31,15 @@ export async function renderHutang(container) {
         </div>
         <div class="field">
           <label>No. Faktur (opsional)</label>
-          <input id="h-faktur" type="text" placeholder="Mis: SJ-20260404-0001"
-            autocomplete="off">
+          <input id="h-faktur" type="text" placeholder="Mis: SJ-20260404-0001" autocomplete="off">
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Catatan (opsional)</label>
-          <input id="h-catatan" type="text" placeholder="Mis: beli beras 5kg"
-            autocomplete="off">
+          <input id="h-catatan" type="text" placeholder="Mis: beli beras 5kg" autocomplete="off">
         </div>
-        <button class="btn btn-primary" style="margin-top:14px"
-          onclick="HUTANG.simpan()">💾 Simpan Hutang</button>
+        <button class="btn btn-primary" style="margin-top:14px" onclick="HUTANG.simpan()">💾 Simpan Hutang</button>
       </div>
 
-      <!-- FILTER -->
       <div class="card" style="padding:12px 14px">
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="h-search" type="text" placeholder="Cari nama pelanggan..."
@@ -66,78 +58,76 @@ export async function renderHutang(container) {
         </div>
       </div>
 
-      <!-- LIST HUTANG -->
       <div id="h-list"></div>
 
     </div>`;
 
-    await _loadHutang();
+  await _loadHutang();
 }
 
-/* ===== DATA ===== */
 let _allHutang = [];
 
 async function _loadHutang() {
-    const el = document.getElementById('h-list');
-    if (!el) return;
+  const el = document.getElementById('h-list');
+  if (!el) return;
 
-    if (!isConfigured || !db) {
-        el.innerHTML = `
+  if (!isConfigured || !db) {
+    el.innerHTML = `
       <div class="card">
         <div class="empty">
           <div class="empty-ico">⚙️</div>
           <div>Supabase belum dikonfigurasi.</div>
         </div>
       </div>`;
-        return;
-    }
+    return;
+  }
 
-    el.innerHTML = '<div class="page-loading"><div class="spinner"></div></div>';
+  el.innerHTML = '<div class="page-loading"><div class="spinner"></div></div>';
 
-    const { data, error } = await db
-        .from('tr_hutang')
-        .select('*')
-        .order('created_at', { ascending: false });
+  const { data, error } = await db
+    .from('tr_hutang')
+    .select('*')
+    .order('created_at', { ascending: false });
 
-    if (error) {
-        el.innerHTML = `
+  if (error) {
+    el.innerHTML = `
       <div class="card">
         <div class="empty">
           <div class="empty-ico">⚠️</div>
           <div>${error.message}</div>
         </div>
       </div>`;
-        return;
-    }
+    return;
+  }
 
-    _allHutang = data || [];
-    _updateStats();
-    HUTANG.filter();
+  _allHutang = data || [];
+  _updateStats();
+  HUTANG.filter();
 }
 
 function _updateStats() {
-    const aktif = _allHutang.filter(h => h.status === 'belum_lunas');
-    const total = aktif.reduce((s, h) => s + Number(h.jumlah), 0);
-    const elA = document.getElementById('h-aktif');
-    const elT = document.getElementById('h-total');
-    if (elA) elA.textContent = aktif.length + ' orang';
-    if (elT) elT.textContent = fmt(total);
+  const aktif = _allHutang.filter(h => h.status === 'belum_lunas');
+  const total = aktif.reduce((s, h) => s + Number(h.jumlah), 0);
+  const elA = document.getElementById('h-aktif');
+  const elT = document.getElementById('h-total');
+  if (elA) elA.textContent = aktif.length + ' orang';
+  if (elT) elT.textContent = fmt(total);
 }
 
 function _renderList(data) {
-    const el = document.getElementById('h-list');
-    if (!el) return;
+  const el = document.getElementById('h-list');
+  if (!el) return;
 
-    if (!data.length) {
-        el.innerHTML = `
+  if (!data.length) {
+    el.innerHTML = `
       <div class="empty" style="padding:32px 0">
         <div class="empty-ico">📭</div>
         <div>Tidak ada data hutang.</div>
       </div>`;
-        return;
-    }
+    return;
+  }
 
-    el.innerHTML = data.map(h => `
+  el.innerHTML = data.map(h => `
     <div class="card" style="margin-bottom:8px;padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
         <div>
@@ -159,84 +149,70 @@ function _renderList(data) {
         </div>` : ''}
       <div style="display:flex;gap:6px;justify-content:flex-end">
         ${h.status === 'belum_lunas' ? `
-          <button class="btn btn-secondary btn-sm" onclick="HUTANG.tandaiLunas(${h.id})">
-            ✓ Tandai Lunas
-          </button>` : ''}
+          <button class="btn btn-secondary btn-sm" onclick="HUTANG.tandaiLunas(${h.id})">✓ Tandai Lunas</button>` : ''}
         <button class="btn btn-secondary btn-sm btn-icon" onclick="HUTANG.edit(${h.id})" title="Edit">✏️</button>
         <button class="btn btn-danger btn-sm btn-icon" onclick="HUTANG.hapus(${h.id})" title="Hapus">🗑️</button>
       </div>
     </div>`).join('');
 }
 
-/* ===== GLOBAL HUTANG OBJECT ===== */
 window.HUTANG = {
-    filter() {
-        const q = (document.getElementById('h-search')?.value || '').toLowerCase();
-        const status = document.getElementById('h-filter-status')?.value || 'semua';
+  filter() {
+    const q = (document.getElementById('h-search')?.value || '').toLowerCase();
+    const status = document.getElementById('h-filter-status')?.value || 'semua';
+    let filtered = _allHutang;
+    if (q) filtered = filtered.filter(h => h.nama_pelanggan.toLowerCase().includes(q));
+    if (status !== 'semua') filtered = filtered.filter(h => h.status === status);
+    _renderList(filtered);
+  },
 
-        let filtered = _allHutang;
-        if (q) filtered = filtered.filter(h => h.nama_pelanggan.toLowerCase().includes(q));
-        if (status !== 'semua') filtered = filtered.filter(h => h.status === status);
+  async simpan() {
+    const nama = (document.getElementById('h-nama')?.value || '').trim();
+    const jumlah = parseFloat(document.getElementById('h-jumlah')?.value || '0');
+    const faktur = (document.getElementById('h-faktur')?.value || '').trim();
+    const catatan = (document.getElementById('h-catatan')?.value || '').trim();
 
-        _renderList(filtered);
-    },
+    if (!nama) { showToast('Isi nama pelanggan!', 'error'); return; }
+    if (!jumlah || jumlah <= 0) { showToast('Isi jumlah hutang!', 'error'); return; }
+    if (!isConfigured || !db) { showToast('Supabase belum dikonfigurasi', 'error'); return; }
 
-    async simpan() {
-        const nama = (document.getElementById('h-nama')?.value || '').trim();
-        const jumlah = parseFloat(document.getElementById('h-jumlah')?.value || '0');
-        const faktur = (document.getElementById('h-faktur')?.value || '').trim();
-        const catatan = (document.getElementById('h-catatan')?.value || '').trim();
+    const tanggal = new Date().toISOString().slice(0, 10);
+    const { error } = await db.from('tr_hutang').insert({
+      nama_pelanggan: nama,
+      jumlah,
+      no_faktur: faktur || null,
+      catatan: catatan || null,
+      tanggal,
+      status: 'belum_lunas',
+    });
 
-        if (!nama) { showToast('Isi nama pelanggan!', 'error'); return; }
-        if (!jumlah || jumlah <= 0) { showToast('Isi jumlah hutang!', 'error'); return; }
+    if (error) { showToast('Gagal simpan: ' + error.message, 'error'); return; }
 
-        if (!isConfigured || !db) {
-            showToast('Supabase belum dikonfigurasi', 'error'); return;
-        }
+    ['h-nama', 'h-jumlah', 'h-faktur', 'h-catatan'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
 
-        const tanggal = new Date().toISOString().slice(0, 10);
+    showToast('Hutang berhasil dicatat ✅', 'success');
+    await _loadHutang();
+  },
 
-        const { error } = await db.from('tr_hutang').insert({
-            nama_pelanggan: nama,
-            jumlah,
-            no_faktur: faktur || null,
-            catatan: catatan || null,
-            tanggal,
-            status: 'belum_lunas',
-        });
+  async tandaiLunas(id) {
+    if (!confirm('Tandai hutang ini sebagai lunas?')) return;
+    const tanggalLunas = new Date().toISOString().slice(0, 10);
+    const { error } = await db.from('tr_hutang')
+      .update({ status: 'lunas', tanggal_lunas: tanggalLunas })
+      .eq('id', id);
+    if (error) { showToast('Gagal update: ' + error.message, 'error'); return; }
+    showToast('Hutang ditandai lunas ✅', 'success');
+    await _loadHutang();
+  },
 
-        if (error) { showToast('Gagal simpan: ' + error.message, 'error'); return; }
-
-        // Reset form
-        ['h-nama', 'h-jumlah', 'h-faktur', 'h-catatan'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = '';
-        });
-
-        showToast('Hutang berhasil dicatat ✅', 'success');
-        await _loadHutang();
-    },
-
-    async tandaiLunas(id) {
-        if (!confirm('Tandai hutang ini sebagai lunas?')) return;
-
-        const tanggalLunas = new Date().toISOString().slice(0, 10);
-        const { error } = await db.from('tr_hutang')
-            .update({ status: 'lunas', tanggal_lunas: tanggalLunas })
-            .eq('id', id);
-
-        if (error) { showToast('Gagal update: ' + error.message, 'error'); return; }
-
-        showToast('Hutang ditandai lunas ✅', 'success');
-        await _loadHutang();
-    },
-
-    edit(id) {
-        const h = _allHutang.find(x => x.id === id);
-        if (!h) return;
-
-        const mc = document.getElementById('modal-container');
-        mc.innerHTML = `
+  edit(id) {
+    const h = _allHutang.find(x => x.id === id);
+    if (!h) return;
+    const mc = document.getElementById('modal-container');
+    mc.innerHTML = `
       <div class="modal-backdrop" onclick="HUTANG._closeModal()">
         <div class="modal-sheet" onclick="event.stopPropagation()">
           <div class="drag-bar"></div>
@@ -266,48 +242,44 @@ window.HUTANG = {
           </div>
         </div>
       </div>`;
-    },
+  },
 
-    async _simpanEdit(id) {
-        const nama = (document.getElementById('he-nama')?.value || '').trim();
-        const jumlah = parseFloat(document.getElementById('he-jumlah')?.value || '0');
-        const catatan = (document.getElementById('he-catatan')?.value || '').trim();
-        const status = document.getElementById('he-status')?.value;
+  async _simpanEdit(id) {
+    const nama = (document.getElementById('he-nama')?.value || '').trim();
+    const jumlah = parseFloat(document.getElementById('he-jumlah')?.value || '0');
+    const catatan = (document.getElementById('he-catatan')?.value || '').trim();
+    const status = document.getElementById('he-status')?.value;
 
-        if (!nama || !jumlah) {
-            showToast('Lengkapi data!', 'error'); return;
-        }
+    if (!nama || !jumlah) { showToast('Lengkapi data!', 'error'); return; }
 
-        const update = {
-            nama_pelanggan: nama, jumlah, catatan: catatan || null, status,
-            tanggal_lunas: status === 'lunas' ? new Date().toISOString().slice(0, 10) : null,
-        };
+    const update = {
+      nama_pelanggan: nama, jumlah,
+      catatan: catatan || null, status,
+      tanggal_lunas: status === 'lunas' ? new Date().toISOString().slice(0, 10) : null,
+    };
 
-        const { error } = await db.from('tr_hutang').update(update).eq('id', id);
-        if (error) { showToast('Gagal update: ' + error.message, 'error'); return; }
+    const { error } = await db.from('tr_hutang').update(update).eq('id', id);
+    if (error) { showToast('Gagal update: ' + error.message, 'error'); return; }
 
-        showToast('Hutang berhasil diupdate ✅', 'success');
-        this._closeModal();
-        await _loadHutang();
-    },
+    showToast('Hutang berhasil diupdate ✅', 'success');
+    this._closeModal();
+    await _loadHutang();
+  },
 
-    async hapus(id) {
-        if (!confirm('Hapus data hutang ini? Tidak bisa dikembalikan.')) return;
+  async hapus(id) {
+    if (!confirm('Hapus data hutang ini? Tidak bisa dikembalikan.')) return;
+    const { error } = await db.from('tr_hutang').delete().eq('id', id);
+    if (error) { showToast('Gagal hapus: ' + error.message, 'error'); return; }
+    showToast('Hutang berhasil dihapus', 'success');
+    await _loadHutang();
+  },
 
-        const { error } = await db.from('tr_hutang').delete().eq('id', id);
-        if (error) { showToast('Gagal hapus: ' + error.message, 'error'); return; }
-
-        showToast('Hutang berhasil dihapus', 'success');
-        await _loadHutang();
-    },
-
-    _closeModal() {
-        const mc = document.getElementById('modal-container');
-        if (mc) mc.innerHTML = '';
-    },
+  _closeModal() {
+    const mc = document.getElementById('modal-container');
+    if (mc) mc.innerHTML = '';
+  },
 };
 
-/* ===== HELPER ===== */
 function _esc(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

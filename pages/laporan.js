@@ -2,8 +2,8 @@
 import { db, isConfigured } from '../supabase.js';
 import { fmt, fmtDate, fmtDateShort, showToast, escHtml, escAttr } from '../utils.js';
 
-let _reportType = 'rekap'; // 'rekap' | 'detail'
-let _lastResult = [];      // untuk PDF
+let _reportType = 'rekap';
+let _lastResult = [];
 
 export async function renderLaporan(container) {
   _reportType = 'rekap';
@@ -17,20 +17,21 @@ export async function renderLaporan(container) {
     return;
   }
 
-  // Ambil daftar barang untuk filter
-  const { data: barangList } = await db.from('ms_barang').select('kode_barang, nama_barang').order('nama_barang');
+  const { data: barangList } = await db
+    .from('ms_barang')
+    .select('kode_barang, nama_barang')
+    .order('nama_barang');
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
   container.innerHTML = `
     <div class="gap-12">
-      <!-- FILTER CARD -->
       <div class="card">
         <div class="sec-lbl">Filter Laporan</div>
         <div class="filter-row">
           <div class="field" style="margin:0">
             <label>Dari Tanggal</label>
-            <input id="lap-dari"  type="date" value="${todayStr}" max="${todayStr}">
+            <input id="lap-dari" type="date" value="${todayStr}" max="${todayStr}">
           </div>
           <div class="field" style="margin:0">
             <label>Sampai Tanggal</label>
@@ -51,24 +52,18 @@ export async function renderLaporan(container) {
         <div class="field" style="margin-bottom:14px">
           <label>Tipe Laporan</label>
           <div class="type-pills">
-            <button class="type-pill active" id="pill-rekap"
-              onclick="LAP.setType('rekap')">📊 Rekap</button>
-            <button class="type-pill" id="pill-detail"
-              onclick="LAP.setType('detail')">📋 Detail</button>
+            <button class="type-pill active" id="pill-rekap" onclick="LAP.setType('rekap')">📊 Rekap</button>
+            <button class="type-pill" id="pill-detail" onclick="LAP.setType('detail')">📋 Detail</button>
           </div>
         </div>
 
-        <button class="btn btn-primary" onclick="LAP.tampilkan()">
-          🔍 Tampilkan Laporan
-        </button>
+        <button class="btn btn-primary" onclick="LAP.tampilkan()">🔍 Tampilkan Laporan</button>
       </div>
 
-      <!-- RESULT AREA -->
       <div id="lap-result"></div>
     </div>`;
 }
 
-/* ===== SET TYPE ===== */
 window.LAP = {
   setType(type) {
     _reportType = type;
@@ -88,7 +83,6 @@ window.LAP = {
     result.innerHTML = '<div class="page-loading"><div class="spinner"></div></div>';
 
     try {
-      // Query detail transaksi + join header
       let query = db
         .from('tr_penjualan_detail')
         .select(`
@@ -106,7 +100,7 @@ window.LAP = {
 
       _lastResult = data || [];
 
-      if (_lastResult.length === 0) {
+      if (!_lastResult.length) {
         result.innerHTML = `
           <div class="card">
             <div class="empty">
@@ -125,8 +119,7 @@ window.LAP = {
     } catch (err) {
       result.innerHTML = `
         <div class="card">
-          <div class="empty"><div class="empty-ico">⚠️</div>
-          <div>${err.message}</div></div>
+          <div class="empty"><div class="empty-ico">⚠️</div><div>${err.message}</div></div>
         </div>`;
     }
   },
@@ -152,9 +145,7 @@ window.LAP = {
   },
 };
 
-/* ===== RENDER REKAP ===== */
 function renderRekap(container, data, dari, sampai) {
-  // Group by barang
   const map = {};
   data.forEach(row => {
     const key = row.kode_barang || row.nama_barang;
@@ -173,9 +164,9 @@ function renderRekap(container, data, dari, sampai) {
     <div class="card" style="padding:0">
       <div id="lap-print-area" style="padding:16px">
         <div class="report-header">
-          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 50px; height: 50px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
+          <img src="logo.jpg" alt="Logo" style="width:50px;height:50px;object-fit:contain;margin-bottom:8px;filter:grayscale(100%)">
           <h2>Laporan Rekap Penjualan</h2>
-          <div>Toko Sinar Jaya — Sembako & Kelontong</div>
+          <div>Toko Sinar Jaya — Sembako &amp; Kelontong</div>
           <div>Periode: ${fmtDateShort(dari)} s/d ${fmtDateShort(sampai)}</div>
         </div>
         <div class="tbl-wrap">
@@ -209,14 +200,11 @@ function renderRekap(container, data, dari, sampai) {
         </div>
       </div>
       <div style="padding:0 16px 16px">
-        <button class="btn btn-secondary" style="width:100%" onclick="LAP.exportPDF()">
-          📄 Export PDF
-        </button>
+        <button class="btn btn-secondary" style="width:100%" onclick="LAP.exportPDF()">📄 Export PDF</button>
       </div>
     </div>`;
 }
 
-/* ===== RENDER DETAIL ===== */
 function renderDetail(container, data, dari, sampai) {
   const sumHarga = data.reduce((s, r) => s + Number(r.subtotal), 0);
   const sumQty = data.reduce((s, r) => s + Number(r.qty), 0);
@@ -225,9 +213,9 @@ function renderDetail(container, data, dari, sampai) {
     <div class="card" style="padding:0">
       <div id="lap-print-area" style="padding:16px">
         <div class="report-header">
-          <img src="logo.jpg" alt="Logo Sinar Jaya" style="width: 50px; height: 50px; object-fit: contain; margin-bottom: 8px; filter: grayscale(100%);">
+          <img src="logo.jpg" alt="Logo" style="width:50px;height:50px;object-fit:contain;margin-bottom:8px;filter:grayscale(100%)">
           <h2>Laporan Detail Penjualan</h2>
-          <div>Toko Sinar Jaya — Sembako & Kelontong</div>
+          <div>Toko Sinar Jaya — Sembako &amp; Kelontong</div>
           <div>Periode: ${fmtDateShort(dari)} s/d ${fmtDateShort(sampai)}</div>
         </div>
         <div class="tbl-wrap">
@@ -245,9 +233,7 @@ function renderDetail(container, data, dari, sampai) {
             <tbody>
               ${data.map(r => `
                 <tr>
-                  <td><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--green)">
-                    ${escHtml(r.tr_penjualan.no_faktur)}
-                  </span></td>
+                  <td><span style="font-family:monospace;font-size:11px;font-weight:700;color:var(--green)">${escHtml(r.tr_penjualan.no_faktur)}</span></td>
                   <td style="white-space:nowrap;font-size:12px">${fmtDateShort(r.tr_penjualan.tanggal)}</td>
                   <td>
                     <div style="font-weight:600;font-size:13px">${escHtml(r.nama_barang)}</div>
@@ -268,12 +254,7 @@ function renderDetail(container, data, dari, sampai) {
         </div>
       </div>
       <div style="padding:0 16px 16px">
-        <button class="btn btn-secondary" style="width:100%" onclick="LAP.exportPDF()">
-          📄 Export PDF
-        </button>
+        <button class="btn btn-secondary" style="width:100%" onclick="LAP.exportPDF()">📄 Export PDF</button>
       </div>
     </div>`;
 }
-
-/* ===== HELPERS ===== */
-// escHtml and escAttr imported from utils.js

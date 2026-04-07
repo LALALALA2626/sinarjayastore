@@ -1,6 +1,6 @@
 // pages/kasir.js — Kasir Manual (Bon Cepat)
-import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js?v=v6';
-import { db, isConfigured } from '../supabase.js?v=v6';
+import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js';
+import { db, isConfigured } from '../supabase.js';
 
 const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
 
@@ -109,7 +109,7 @@ export async function renderKasir(container) {
             <span style="font-weight:400;font-size:9px;margin-left:8px;text-transform:none;letter-spacing:0;color:var(--muted)">· bisa ketik pecahan: 1/2, 1/4 ...</span>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${['1/4','1/3','1/2','2/3','3/4','1.5','2','3','5','10'].map(q => `
+            ${['1/4', '1/3', '1/2', '2/3', '3/4', '1.5', '2', '3', '5', '10'].map(q => `
               <button style="padding:5px 11px;border-radius:20px;border:1.5px solid var(--border);
                 background:var(--white);font-size:12px;font-weight:600;cursor:pointer;
                 color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif"
@@ -238,7 +238,7 @@ function _renderItems() {
 /* ===== RENDER PRODUK CACHE CHIPS ===== */
 function _renderProductCacheChips() {
   const wrap = document.getElementById('k-produk-cache-wrap');
-  const el   = document.getElementById('k-produk-chips');
+  const el = document.getElementById('k-produk-chips');
   if (!wrap || !el) return;
 
   const cache = _loadProductCache();
@@ -289,11 +289,11 @@ async function _renderRiwayat() {
   await _syncBonFromSupabase();
 
   const todayKey = new Date().toISOString().slice(0, 10);
-  const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
-  const bonHari  = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
+  const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+  const bonHari = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
   const revTotal = bonHari.reduce((s, b) => s + b.total, 0);
-  const cntEl    = document.getElementById('k-bon-count');
-  const revEl    = document.getElementById('k-rev');
+  const cntEl = document.getElementById('k-bon-count');
+  const revEl = document.getElementById('k-rev');
   if (cntEl) cntEl.textContent = bonHari.length + ' bon';
   if (revEl) revEl.textContent = fmt(revTotal);
   KASIR.filterRiwayat();
@@ -302,13 +302,13 @@ async function _renderRiwayat() {
 /* ===== SHOW STRUK MODAL ===== */
 function _showStruk(bon, isView = false) {
   const struktxt = buildStrukText({
-    noFaktur     : bon.noFaktur,
-    tanggal      : bon.waktu,        // kirim ISO string — shortDate() di utils.js yang format
+    noFaktur: bon.noFaktur,
+    tanggal: bon.waktu,        // kirim ISO string — shortDate() di utils.js yang format
     namaPelanggan: bon.namaPelanggan,
-    catatan      : bon.catatan,
-    items        : bon.items,
-    total        : bon.total,
-    metode       : bon.metode,
+    catatan: bon.catatan,
+    items: bon.items,
+    total: bon.total,
+    metode: bon.metode,
   });
 
   const safeTxt = struktxt.replace(/`/g, "'");
@@ -387,7 +387,7 @@ async function _syncBonFromSupabase() {
   if (!isConfigured || !db) return;
 
   const tglEl = document.getElementById('k-filter-tgl');
-  const tgl   = (tglEl && tglEl.value) || new Date().toISOString().slice(0, 10);
+  const tgl = (tglEl && tglEl.value) || new Date().toISOString().slice(0, 10);
 
   try {
     // Ambil header bon (termasuk nama_pelanggan, catatan, metode)
@@ -415,18 +415,18 @@ async function _syncBonFromSupabase() {
 
       const itemDetails = (details || []).filter(d => d.no_faktur === h.no_faktur);
       const bon = {
-        id           : Date.now() + Math.random(), // pseudo-id unik
-        noFaktur     : h.no_faktur,
-        waktu        : h.created_at || (tgl + 'T00:00:00.000Z'),
+        id: Date.now() + Math.random(), // pseudo-id unik
+        noFaktur: h.no_faktur,
+        waktu: h.created_at || (tgl + 'T00:00:00.000Z'),
         namaPelanggan: h.nama_pelanggan || '(tidak diketahui)',
-        catatan      : h.catatan || '',
-        metode       : h.metode || 'Tunai',
-        total        : h.total_harga,
-        items        : itemDetails.map(d => ({
-          nama   : d.nama_barang,
-          harga  : d.harga_satuan,
-          qty    : String(d.qty),
-          satuan : d.satuan || 'pcs',
+        catatan: h.catatan || '',
+        metode: h.metode || 'Tunai',
+        total: h.total_harga,
+        items: itemDetails.map(d => ({
+          nama: d.nama_barang,
+          harga: d.harga_satuan,
+          qty: String(d.qty),
+          satuan: d.satuan || 'pcs',
           kode_barang: d.kode_barang,
         })),
         _fromServer: true, // flag: data ini dari Supabase
@@ -459,9 +459,9 @@ function _saveProductsToCache(items) {
     if (!i.nama) return;
     const key = i.nama.trim().toLowerCase();
     cacheMap[key] = {
-      nama    : i.nama.trim(),
-      harga   : i.harga  || 0,
-      satuan  : i.satuan || 'pcs',
+      nama: i.nama.trim(),
+      harga: i.harga || 0,
+      satuan: i.satuan || 'pcs',
       lastUsed: new Date().toISOString(),
     };
   });
@@ -539,7 +539,7 @@ window.KASIR = {
   searchProduct(inputEl, id) {
     const val = inputEl.value.toLowerCase().trim();
     const dropdown = document.getElementById('k-autocomplete-dropdown');
-    
+
     if (!val || _masterBarang.length === 0) {
       if (dropdown) dropdown.style.display = 'none';
       return;
@@ -564,7 +564,7 @@ window.KASIR = {
     // Position dropdown below the input
     const rect = inputEl.getBoundingClientRect();
     const listRect = document.getElementById('k-items-list').getBoundingClientRect();
-    
+
     dropdown.style.top = (rect.bottom - listRect.top + 5) + 'px';
     dropdown.style.left = (rect.left - listRect.left) + 'px';
     dropdown.style.width = Math.max(rect.width, 240) + 'px';
@@ -584,14 +584,14 @@ window.KASIR = {
     item.kode_barang = kode;
     item.nama = nama;
     item.harga = harga;
-    
+
     KASIR.hideDropdown();
     _renderItems();
-    
+
     // Focus onto the qty element or trigger re-render
     setTimeout(() => {
       const row = document.querySelector(`[data-item-id="${id}"]`);
-      if(row) {
+      if (row) {
         const qtyEl = row.querySelectorAll('.ii')[2];
         if (qtyEl) qtyEl.focus();
       }
@@ -610,7 +610,7 @@ window.KASIR = {
 
   async hapusBonHariIni() {
     const todayKey = new Date().toISOString().slice(0, 10);
-    const allBon   = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
     const todayBon = allBon.filter(b => b.waktu.slice(0, 10) === todayKey);
     if (!todayBon.length) { showToast('Tidak ada bon hari ini', 'info'); return; }
 
@@ -645,7 +645,7 @@ window.KASIR = {
   },
 
   filterRiwayat() {
-    const q   = (document.getElementById('k-search')?.value || '').toLowerCase();
+    const q = (document.getElementById('k-search')?.value || '').toLowerCase();
     const tgl = document.getElementById('k-filter-tgl')?.value || '';
 
     // Jika tanggal berubah, sync ulang dari Supabase di background
@@ -660,7 +660,7 @@ window.KASIR = {
     const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
     let filtered = [...allBon].reverse();
 
-    if (q)   filtered = filtered.filter(b => (b.namaPelanggan || '').toLowerCase().includes(q));
+    if (q) filtered = filtered.filter(b => (b.namaPelanggan || '').toLowerCase().includes(q));
     if (tgl) filtered = filtered.filter(b => b.waktu.slice(0, 10) === tgl);
 
     const el = document.getElementById('k-riwayat');
@@ -729,7 +729,7 @@ window.KASIR = {
   _showBayarModal(total, nama, catatan, valid) {
     const isHutang = _metode === 'Hutang';
     const title = isHutang ? '📋 Pembayaran Hutang (Bisa DP)' : (_metode === 'Transfer' ? '📲 Pembayaran Transfer' : '💵 Pembayaran Tunai');
-    
+
     // Hitung tombol pecahan uang cerdas (Smart Cash Chips)
     const smarts = [
       Math.ceil(total / 5000) * 5000,
@@ -739,9 +739,9 @@ window.KASIR = {
       Math.ceil(total / 100000) * 100000,
     ].filter(x => x > total);
     // filter unik & urutkan, ambil maks 3
-    const smartM = [...new Set(smarts)].sort((a,b)=>a-b).slice(0, 3);
-    const smartHTML = smartM.map(val => 
-      `<button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${val}; KASIR._calcKembalian(${total})">${fmt(val).replace('Rp ','')}</button>`
+    const smartM = [...new Set(smarts)].sort((a, b) => a - b).slice(0, 3);
+    const smartHTML = smartM.map(val =>
+      `<button class="btn btn-secondary btn-sm" onclick="document.getElementById('k-bayar-inp').value=${val}; KASIR._calcKembalian(${total})">${fmt(val).replace('Rp ', '')}</button>`
     ).join('');
 
     const mc = document.getElementById('modal-container');
@@ -781,7 +781,7 @@ window.KASIR = {
     const k = byr - total;
     const el = document.getElementById('k-kembalian-val');
     const lbl = document.getElementById('k-kembalian-lbl');
-    
+
     if (_metode === 'Hutang') {
       if (k < 0) {
         lbl.textContent = 'Sisa Hutang';
@@ -812,12 +812,12 @@ window.KASIR = {
     // Jika Hutang, default DP adalah 0.
     const defaultByr = _metode === 'Hutang' ? 0 : total;
     const byr = byrStr ? parseFloat(byrStr) : defaultByr;
-    
+
     if (_metode !== 'Hutang' && byr < total) {
       showToast('Uang kurang!', 'error');
       return;
     }
-    
+
     KASIR._closeModal();
     // Jika Hutang, selisih kurang = Sisa Hutang. Kalau lunas = Kembalian 0
     const kembali = (_metode === 'Hutang' && byr < total) ? Math.abs(total - byr) : (byr - total);
@@ -845,24 +845,24 @@ window.KASIR = {
       try {
         // 1. Simpan header bon — termasuk nama_pelanggan, catatan, metode
         let { error: e1 } = await db.from('tr_penjualan').insert({
-          no_faktur     : noFaktur,
-          tanggal       : tanggal,
-          total_harga   : total,
-          total_qty     : totalQty,
+          no_faktur: noFaktur,
+          tanggal: tanggal,
+          total_harga: total,
+          total_qty: totalQty,
           nama_pelanggan: nama,
-          catatan       : catatan || null,
-          metode        : _metode,
+          catatan: catatan || null,
+          metode: _metode,
         });
 
         if (e1 && e1.message && e1.message.includes('does not exist')) {
-           showToast('Catatan: Kolom metode/pelanggan baru belum di-migrasi ke DB, menyimpan format lama...', 'warning');
-           const { error: err1 } = await db.from('tr_penjualan').insert({
-             no_faktur     : noFaktur,
-             tanggal       : tanggal,
-             total_harga   : total,
-             total_qty     : totalQty
-           });
-           e1 = err1;
+          showToast('Catatan: Kolom metode/pelanggan baru belum di-migrasi ke DB, menyimpan format lama...', 'warning');
+          const { error: err1 } = await db.from('tr_penjualan').insert({
+            no_faktur: noFaktur,
+            tanggal: tanggal,
+            total_harga: total,
+            total_qty: totalQty
+          });
+          e1 = err1;
         }
 
         if (e1) throw e1;
@@ -870,15 +870,15 @@ window.KASIR = {
         // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
         for (const i of valid) {
           if (!i.kode_barang) {
-            const typedVal = i.nama.toLowerCase().replace(/\s+/g,'');
+            const typedVal = i.nama.toLowerCase().replace(/\s+/g, '');
             const matchCache = _masterBarang.find(mb => {
               const lowerMB = mb.nama_barang.toLowerCase();
               const exact = lowerMB === i.nama.toLowerCase();
               if (exact) return true;
-              
+
               // Fuzzy Similarity Treshold 65% (Diturunkan agar lebih luwes mendeteksi typo berantakan)
               if (similarity(mb.nama_barang, i.nama) > 0.65) return true;
-              
+
               // Cek Singkatan Huruf Awal (misal: "GF" untuk "Gudang Garam Filter")
               const abbrev = lowerMB.split(/\s+/).filter(Boolean).map(w => w[0]).join('');
               if (abbrev === i.nama.toLowerCase() || abbrev === typedVal) return true;
@@ -906,25 +906,25 @@ window.KASIR = {
         // 3. Simpan detail
         let { error: e2 } = await db.from('tr_penjualan_detail').insert(
           valid.map(i => ({
-            no_faktur   : noFaktur,
-            kode_barang : i.kode_barang || null,
-            nama_barang : i.nama,
-            qty         : _parseQtyText(i.qty),
+            no_faktur: noFaktur,
+            kode_barang: i.kode_barang || null,
+            nama_barang: i.nama,
+            qty: _parseQtyText(i.qty),
             harga_satuan: i.harga,
-            subtotal    : i.harga * _parseQtyText(i.qty),
-            satuan      : i.satuan || 'pcs',
+            subtotal: i.harga * _parseQtyText(i.qty),
+            satuan: i.satuan || 'pcs',
           }))
         );
 
         if (e2 && e2.message && e2.message.includes('does not exist')) {
           const { error: err2 } = await db.from('tr_penjualan_detail').insert(
             valid.map(i => ({
-              no_faktur   : noFaktur,
-              kode_barang : i.kode_barang || null,
-              nama_barang : i.nama,
-              qty         : _parseQtyText(i.qty),
+              no_faktur: noFaktur,
+              kode_barang: i.kode_barang || null,
+              nama_barang: i.nama,
+              qty: _parseQtyText(i.qty),
               harga_satuan: i.harga,
-              subtotal    : i.harga * _parseQtyText(i.qty)
+              subtotal: i.harga * _parseQtyText(i.qty)
             }))
           );
           e2 = err2;
@@ -937,12 +937,12 @@ window.KASIR = {
           const sisaHutang = (bayar < total) ? Math.abs(total - bayar) : 0;
           if (sisaHutang > 0) {
             await db.from('tr_hutang').insert({
-              no_faktur     : noFaktur,
+              no_faktur: noFaktur,
               nama_pelanggan: nama,
-              jumlah        : sisaHutang,
-              catatan       : (catatan ? catatan + ' ' : '') + `(Sisa hasil DP Rp ${fmtNum(bayar)})`,
-              tanggal       : tanggal,
-              status        : 'belum_lunas',
+              jumlah: sisaHutang,
+              catatan: (catatan ? catatan + ' ' : '') + `(Sisa hasil DP Rp ${fmtNum(bayar)})`,
+              tanggal: tanggal,
+              status: 'belum_lunas',
             });
           }
         }
@@ -1018,9 +1018,9 @@ window.KASIR = {
           <div class="field">
             <label>Cara Pembayaran</label>
             <select id="edit-metode">
-              <option value="Tunai"    ${bon.metode === 'Tunai'    ? 'selected' : ''}>Tunai</option>
+              <option value="Tunai"    ${bon.metode === 'Tunai' ? 'selected' : ''}>Tunai</option>
               <option value="Transfer" ${bon.metode === 'Transfer' ? 'selected' : ''}>Transfer</option>
-              <option value="Hutang"   ${bon.metode === 'Hutang'   ? 'selected' : ''}>Hutang</option>
+              <option value="Hutang"   ${bon.metode === 'Hutang' ? 'selected' : ''}>Hutang</option>
             </select>
           </div>
 
@@ -1071,7 +1071,7 @@ window.KASIR = {
   _renderEditItemsTable() {
     const items = window._editItemsCache || [];
     const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
-    
+
     const rows = items.map((it, idx) => `
       <tr style="border-bottom:1px solid #f3f4f6">
         <td style="padding:6px 4px;">
@@ -1134,9 +1134,9 @@ window.KASIR = {
     const idx = allBon.findIndex(b => b.id === id);
     if (idx < 0) return;
 
-    const namaBaru    = document.getElementById('edit-nama')?.value.trim();
+    const namaBaru = document.getElementById('edit-nama')?.value.trim();
     const catatanBaru = document.getElementById('edit-catatan')?.value.trim();
-    const metodeBaru  = document.getElementById('edit-metode')?.value;
+    const metodeBaru = document.getElementById('edit-metode')?.value;
 
     if (!namaBaru) {
       showToast('Nama pelanggan tidak boleh kosong', 'error');
@@ -1146,8 +1146,8 @@ window.KASIR = {
     // Bersihkan yang tidak ada nama
     const updatedItems = (window._editItemsCache || []).filter(i => i.nama && i.nama.trim() !== '');
     if (!updatedItems.length) {
-       showToast('Barang tidak boleh kosong semua', 'error');
-       return;
+      showToast('Barang tidak boleh kosong semua', 'error');
+      return;
     }
 
     const totalBaru = updatedItems.reduce(
@@ -1155,10 +1155,10 @@ window.KASIR = {
     );
 
     allBon[idx].namaPelanggan = namaBaru;
-    allBon[idx].catatan       = catatanBaru;
-    allBon[idx].metode        = metodeBaru;
-    allBon[idx].items         = updatedItems;
-    allBon[idx].total         = totalBaru;
+    allBon[idx].catatan = catatanBaru;
+    allBon[idx].metode = metodeBaru;
+    allBon[idx].items = updatedItems;
+    allBon[idx].total = totalBaru;
     localStorage.setItem('sj_bon', JSON.stringify(allBon));
 
     if (isConfigured && db) {
@@ -1167,10 +1167,10 @@ window.KASIR = {
 
         // Update header: total, metode, nama, catatan
         let { error: eUpdate } = await db.from('tr_penjualan').update({
-          metode        : metodeBaru,
+          metode: metodeBaru,
           nama_pelanggan: namaBaru,
-          catatan       : catatanBaru || null,
-          total_harga   : totalBaru,
+          catatan: catatanBaru || null,
+          total_harga: totalBaru,
         }).eq('no_faktur', noFaktur);
 
         if (eUpdate && eUpdate.message && eUpdate.message.includes('does not exist')) {
@@ -1179,17 +1179,17 @@ window.KASIR = {
 
         // Update detail: Supaya aman untuk hapus/tambah baris, kita delete lama & insert yang baru
         await db.from('tr_penjualan_detail').delete().eq('no_faktur', noFaktur);
-        
+
         let { error: eDtl } = await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
           const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
           return {
-            no_faktur   : noFaktur,
-            kode_barang : it.kode_barang || null,
-            nama_barang : it.nama,
-            qty         : _parseQtyText(it.qty),
+            no_faktur: noFaktur,
+            kode_barang: it.kode_barang || null,
+            nama_barang: it.nama,
+            qty: _parseQtyText(it.qty),
             harga_satuan: parseFloat(it.harga) || 0,
-            subtotal    : subtotal,
-            satuan      : it.satuan || 'pcs',
+            subtotal: subtotal,
+            satuan: it.satuan || 'pcs',
           };
         }));
 
@@ -1197,12 +1197,12 @@ window.KASIR = {
           await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
             const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
             return {
-              no_faktur   : noFaktur,
-              kode_barang : it.kode_barang || null,
-              nama_barang : it.nama,
-              qty         : _parseQtyText(it.qty),
+              no_faktur: noFaktur,
+              kode_barang: it.kode_barang || null,
+              nama_barang: it.nama,
+              qty: _parseQtyText(it.qty),
               harga_satuan: parseFloat(it.harga) || 0,
-              subtotal    : subtotal
+              subtotal: subtotal
             };
           }));
         }
@@ -1261,55 +1261,55 @@ window.KASIR = {
 
     try {
       if (!window.Html5QrcodeScanner) {
-         showToast('Modul Scanner masih dimuat...', 'warning');
-         KASIR.stopScanner();
-         return;
+        showToast('Modul Scanner masih dimuat...', 'warning');
+        KASIR.stopScanner();
+        return;
       }
-      const scanner = new window.Html5QrcodeScanner('reader', { 
-         fps: 10, 
-         qrbox: {width: 250, height: 150},
-         aspectRatio: 1.0,
+      const scanner = new window.Html5QrcodeScanner('reader', {
+        fps: 10,
+        qrbox: { width: 250, height: 150 },
+        aspectRatio: 1.0,
       }, false);
-      
+
       this._scanner = scanner;
       scanner.render((result) => {
-          KASIR.stopScanner();
-          // Bunyi beep sukses
-          try {
-             const ctx = new (window.AudioContext || window.webkitAudioContext)();
-             const osc = ctx.createOscillator(); osc.connect(ctx.destination);
-             osc.frequency.value = 800; osc.start(); setTimeout(()=>osc.stop(), 100);
-          } catch(e){}
+        KASIR.stopScanner();
+        // Bunyi beep sukses
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator(); osc.connect(ctx.destination);
+          osc.frequency.value = 800; osc.start(); setTimeout(() => osc.stop(), 100);
+        } catch (e) { }
 
-          // Cari di MS Barang
-          const found = _masterBarang.find(m => (m.kode_barang||'').toLowerCase() === result.toLowerCase());
-          if (found) {
-             // Tambahkan ke keranjang
-             KASIR.addItem();
-             const lastIdx = _items.length - 1;
-             _items[lastIdx].kode_barang = found.kode_barang;
-             _items[lastIdx].nama = found.nama_barang;
-             _items[lastIdx].harga = found.harga_satuan;
-             _items[lastIdx].defaultHarga = found.harga_satuan;
-             showToast('✅ Berhasil Scan: ' + found.nama_barang, 'success');
-             _renderItems();
-             _renderSummary();
-          } else {
-             showToast('❌ Barcode tidak dikenal. Ketik manual saja.', 'error');
-          }
-      }, (error) => {});
-    } catch(err) {
+        // Cari di MS Barang
+        const found = _masterBarang.find(m => (m.kode_barang || '').toLowerCase() === result.toLowerCase());
+        if (found) {
+          // Tambahkan ke keranjang
+          KASIR.addItem();
+          const lastIdx = _items.length - 1;
+          _items[lastIdx].kode_barang = found.kode_barang;
+          _items[lastIdx].nama = found.nama_barang;
+          _items[lastIdx].harga = found.harga_satuan;
+          _items[lastIdx].defaultHarga = found.harga_satuan;
+          showToast('✅ Berhasil Scan: ' + found.nama_barang, 'success');
+          _renderItems();
+          _renderSummary();
+        } else {
+          showToast('❌ Barcode tidak dikenal. Ketik manual saja.', 'error');
+        }
+      }, (error) => { });
+    } catch (err) {
       showToast('Kamera tidak dapat diakses.', 'error');
       KASIR.stopScanner();
     }
   },
 
   stopScanner() {
-     if(this._scanner) { 
-        this._scanner.clear().catch(e => console.log(e));
-        this._scanner = null; 
-     }
-     document.getElementById('modal-container').innerHTML = '';
+    if (this._scanner) {
+      this._scanner.clear().catch(e => console.log(e));
+      this._scanner = null;
+    }
+    document.getElementById('modal-container').innerHTML = '';
   },
 
   async _printBT(text) {
@@ -1366,9 +1366,9 @@ window.KASIR = {
               let b = 0;
               for (let n = 0; n < 8; n++) {
                 const i = (y * w + x + n) * 4;
-                const lum = 0.299*imgData[i] + 0.587*imgData[i+1] + 0.114*imgData[i+2];
+                const lum = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
                 // jika gelap (hitam) cetak (1)
-                if (imgData[i+3] > 128 && lum < 128) {
+                if (imgData[i + 3] > 128 && lum < 128) {
                   b |= (1 << (7 - n));
                 }
               }
@@ -1381,9 +1381,9 @@ window.KASIR = {
           const yH = Math.floor(h / 256);
           // ESC a 1 (center), GS v 0 0 xL xH yL yH, ESC a 0 (left)
           resolve(new Uint8Array([
-            27, 97, 1, 
-            29, 118, 48, 0, xL, xH, yL, yH, 
-            ...dataBytes, 
+            27, 97, 1,
+            29, 118, 48, 0, xL, xH, yL, yH,
+            ...dataBytes,
             27, 97, 0, 10
           ]));
         };
@@ -1391,7 +1391,7 @@ window.KASIR = {
       });
 
       const ESC = String.fromCharCode(27);
-      const GS  = String.fromCharCode(29);
+      const GS = String.fromCharCode(29);
       // ESC @ (Reset), ESC a 0 (left)
       const textFull = ESC + '@' + ESC + 'a\x00\n' + text + '\n\n\n' + GS + 'V\x41\x03';
       const textBytes = new TextEncoder().encode(textFull);
@@ -1405,7 +1405,7 @@ window.KASIR = {
           combine.set(textBytes, logoData.length);
           finalData = combine;
         }
-      } catch (err) {}
+      } catch (err) { }
 
       for (let i = 0; i < finalData.length; i += 200) {
         await _bleChar.writeValue(finalData.slice(i, i + 200));
