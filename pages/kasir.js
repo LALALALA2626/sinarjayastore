@@ -86,10 +86,12 @@ export async function renderKasir(container) {
             <div></div>
           </div>
           <div id="k-items-list"></div>
-          <div id="k-autocomplete-dropdown" class="glass-dropdown"></div>
           <div id="k-empty" class="empty" style="padding:20px 0">
             <div class="empty-ico">🛒</div>
             <div>Belum ada barang.<br>Tap <b>+ Tambah Barang</b> untuk mulai.</div>
+          </div>
+          <div id="k-add-btn-wrap" style="display:none;margin-top:10px;text-align:center">
+             <button class="btn btn-secondary btn-sm" onclick="KASIR.addItem()" style="width:100%;font-size:13px;padding:10px;border-radius:10px;">+ Tambah Barang Lagi</button>
           </div>
         </div>
 
@@ -193,12 +195,14 @@ function _renderItems() {
     if (emp) emp.style.display = 'block';
     if (sw) sw.style.display = 'none';
     if (cols) cols.style.display = 'none';
+    if (document.getElementById('k-add-btn-wrap')) document.getElementById('k-add-btn-wrap').style.display = 'none';
     return;
   }
 
   if (emp) emp.style.display = 'none';
   if (sw) sw.style.display = 'block';
   if (cols) cols.style.display = 'grid';
+  if (document.getElementById('k-add-btn-wrap')) document.getElementById('k-add-btn-wrap').style.display = 'block';
 
   // Hapus datalist lama, kita pakai custom dropdown
   el.innerHTML = _items.map(it => `
@@ -476,7 +480,10 @@ window.KASIR = {
     _renderItems();
     setTimeout(() => {
       const inputs = document.querySelectorAll('.k-nama-inp');
-      if (inputs.length) inputs[inputs.length - 1].focus();
+      if (inputs.length) {
+        inputs[inputs.length - 1].focus({ preventScroll: true });
+        inputs[inputs.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }, 60);
   },
 
@@ -502,7 +509,7 @@ window.KASIR = {
       _renderItems();
       setTimeout(() => {
         const inputs = document.querySelectorAll('.k-nama-inp');
-        if (inputs.length) inputs[inputs.length - 1].focus();
+        if (inputs.length) inputs[inputs.length - 1].focus({ preventScroll: true });
       }, 60);
       return;
     }
@@ -837,7 +844,7 @@ window.KASIR = {
     if (isConfigured && db) {
       try {
         // 1. Simpan header bon — termasuk nama_pelanggan, catatan, metode
-        const { error: e1 } = await db.from('tr_penjualan').insert({
+        let { error: e1 } = await db.from('tr_penjualan').insert({
           no_faktur     : noFaktur,
           tanggal       : tanggal,
           total_harga   : total,
@@ -846,6 +853,18 @@ window.KASIR = {
           catatan       : catatan || null,
           metode        : _metode,
         });
+
+        if (e1 && e1.message && e1.message.includes('does not exist')) {
+           showToast('Catatan: Kolom metode/pelanggan baru belum di-migrasi ke DB, menyimpan format lama...', 'warning');
+           const { error: err1 } = await db.from('tr_penjualan').insert({
+             no_faktur     : noFaktur,
+             tanggal       : tanggal,
+             total_harga   : total,
+             total_qty     : totalQty
+           });
+           e1 = err1;
+        }
+
         if (e1) throw e1;
 
         // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
@@ -885,7 +904,7 @@ window.KASIR = {
         }
 
         // 3. Simpan detail
-        const { error: e2 } = await db.from('tr_penjualan_detail').insert(
+        let { error: e2 } = await db.from('tr_penjualan_detail').insert(
           valid.map(i => ({
             no_faktur   : noFaktur,
             kode_barang : i.kode_barang || null,
@@ -896,6 +915,21 @@ window.KASIR = {
             satuan      : i.satuan || 'pcs',
           }))
         );
+
+        if (e2 && e2.message && e2.message.includes('does not exist')) {
+          const { error: err2 } = await db.from('tr_penjualan_detail').insert(
+            valid.map(i => ({
+              no_faktur   : noFaktur,
+              kode_barang : i.kode_barang || null,
+              nama_barang : i.nama,
+              qty         : _parseQtyText(i.qty),
+              harga_satuan: i.harga,
+              subtotal    : i.harga * _parseQtyText(i.qty)
+            }))
+          );
+          e2 = err2;
+        }
+
         if (e2) throw e2;
 
         // Auto-catat hutang jika metode Hutang
@@ -1132,17 +1166,21 @@ window.KASIR = {
         const noFaktur = allBon[idx].noFaktur;
 
         // Update header: total, metode, nama, catatan
-        await db.from('tr_penjualan').update({
+        let { error: eUpdate } = await db.from('tr_penjualan').update({
           metode        : metodeBaru,
           nama_pelanggan: namaBaru,
           catatan       : catatanBaru || null,
           total_harga   : totalBaru,
         }).eq('no_faktur', noFaktur);
 
+        if (eUpdate && eUpdate.message && eUpdate.message.includes('does not exist')) {
+          await db.from('tr_penjualan').update({ total_harga: totalBaru }).eq('no_faktur', noFaktur);
+        }
+
         // Update detail: Supaya aman untuk hapus/tambah baris, kita delete lama & insert yang baru
         await db.from('tr_penjualan_detail').delete().eq('no_faktur', noFaktur);
         
-        await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
+        let { error: eDtl } = await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
           const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
           return {
             no_faktur   : noFaktur,
@@ -1154,6 +1192,20 @@ window.KASIR = {
             satuan      : it.satuan || 'pcs',
           };
         }));
+
+        if (eDtl && eDtl.message && eDtl.message.includes('does not exist')) {
+          await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
+            const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
+            return {
+              no_faktur   : noFaktur,
+              kode_barang : it.kode_barang || null,
+              nama_barang : it.nama,
+              qty         : _parseQtyText(it.qty),
+              harga_satuan: parseFloat(it.harga) || 0,
+              subtotal    : subtotal
+            };
+          }));
+        }
       } catch (err) {
         console.warn('Gagal update Supabase:', err.message);
       }
@@ -1391,7 +1443,7 @@ if (!document.getElementById('kasir-styles')) {
     }
     .ble-dot { width:10px; height:10px; border-radius:50%; background:#d1d5db; flex-shrink:0; }
     .ble-dot.on { background:#22c55e; box-shadow: 0 0 8px #22c55e; }
-    .bottom-nav { grid-template-columns: repeat(6, 1fr) !important; }
+    .bottom-nav { grid-template-columns: repeat(5, 1fr) !important; }
     .nav-item   { font-size: 8.5px !important; }
     .nav-icon   { width: 19px !important; height: 19px !important; }
     

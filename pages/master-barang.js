@@ -45,7 +45,17 @@ function getFormHTML(editMode, barang = {}) {
             value="${barang.nama_barang || ''}" required>
         </div>
         <div class="field">
-          <label>Harga Satuan (Rp) *</label>
+          <label>Harga Masuk (1 Pack/Kardus) (Rp)</label>
+          <input id="mb-harga-masuk" type="number" placeholder="0" min="0" step="100"
+            value="${barang.harga_masuk || ''}" inputmode="numeric" oninput="MB.calcModal()">
+        </div>
+        <div class="field">
+          <label>Isi per Pack/Kardus (Pcs/Botol)</label>
+          <input id="mb-isi" type="number" placeholder="1" min="1" step="0.1"
+            value="${barang.isi_per_pack || ''}" inputmode="decimal" oninput="MB.calcModal()">
+        </div>
+        <div class="field">
+          <label>Harga Jual per Unit (Rp) * <span id="mb-modal-hint" style="margin-left:6px;font-size:11px;font-weight:600;color:var(--green)"></span></label>
           <input id="mb-harga" type="number" placeholder="0" min="0" step="100"
             value="${barang.harga_satuan || ''}" required inputmode="numeric">
         </div>
@@ -133,6 +143,8 @@ async function handleSave(e) {
   const kode = document.getElementById('mb-kode').value.trim().toUpperCase();
   const nama = document.getElementById('mb-nama').value.trim();
   const harga = parseFloat(document.getElementById('mb-harga').value) || 0;
+  const hargaMasuk = parseFloat(document.getElementById('mb-harga-masuk').value) || null;
+  const isiPerPack = parseFloat(document.getElementById('mb-isi').value) || null;
 
   if (!kode || !nama || harga <= 0) {
     showToast('Lengkapi semua field dengan benar', 'error'); return;
@@ -143,16 +155,35 @@ async function handleSave(e) {
 
   try {
     if (_editMode) {
-      // Update — kode tidak berubah
-      const { error } = await db.from('ms_barang')
-        .update({ nama_barang: nama, harga_satuan: harga })
-        .eq('kode_barang', kode);
+      let payload = { nama_barang: nama, harga_satuan: harga };
+      if (!isNaN(hargaMasuk) && hargaMasuk !== null) payload.harga_masuk = hargaMasuk;
+      if (!isNaN(isiPerPack) && isiPerPack !== null) payload.isi_per_pack = isiPerPack;
+
+      // Coba update lengkap
+      let { error } = await db.from('ms_barang').update(payload).eq('kode_barang', kode);
+
+      // Fallback jika tidak ada kolom di DB
+      if (error && error.message && error.message.includes('does not exist')) {
+        showToast('Info: Kolom harga_masuk belum ada di Database', 'warning');
+        const { error: err2 } = await db.from('ms_barang').update({ nama_barang: nama, harga_satuan: harga }).eq('kode_barang', kode);
+        error = err2;
+      }
+      
       if (error) throw error;
       showToast(`Barang ${nama} berhasil diupdate ✅`);
     } else {
-      // Insert baru
-      const { error } = await db.from('ms_barang')
-        .insert({ kode_barang: kode, nama_barang: nama, harga_satuan: harga });
+      let payload = { kode_barang: kode, nama_barang: nama, harga_satuan: harga };
+      if (!isNaN(hargaMasuk) && hargaMasuk !== null) payload.harga_masuk = hargaMasuk;
+      if (!isNaN(isiPerPack) && isiPerPack !== null) payload.isi_per_pack = isiPerPack;
+
+      let { error } = await db.from('ms_barang').insert(payload);
+
+      if (error && error.message && error.message.includes('does not exist')) {
+        showToast('Info: Kolom harga_masuk belum ada di Database', 'warning');
+        const { error: err2 } = await db.from('ms_barang').insert({ kode_barang: kode, nama_barang: nama, harga_satuan: harga });
+        error = err2;
+      }
+
       if (error) {
         if (error.code === '23505') { showToast('Kode barang sudah digunakan', 'error'); return; }
         throw error;
@@ -170,6 +201,18 @@ async function handleSave(e) {
 
 /* ===== GLOBAL MB OBJECT (untuk onclick di HTML string) ===== */
 window.MB = {
+  calcModal() {
+    const hk = parseFloat(document.getElementById('mb-harga-masuk')?.value) || 0;
+    const isi = parseFloat(document.getElementById('mb-isi')?.value) || 0;
+    const hint = document.getElementById('mb-modal-hint');
+    if (hk > 0 && isi > 0 && hint) {
+      const r_modal = Math.ceil(hk / isi);
+      hint.textContent = `(Modal per Unit: Rp ${r_modal.toLocaleString('id-ID')})`;
+    } else if (hint) {
+      hint.textContent = '';
+    }
+  },
+
   async editBarang(kode) {
     const { data, error } = await db.from('ms_barang').select('*').eq('kode_barang', kode).single();
     if (error) { showToast('Gagal memuat data', 'error'); return; }
@@ -178,9 +221,9 @@ window.MB = {
     const formCard = document.getElementById('mb-form-card');
     formCard.outerHTML = getFormHTML(true, data);
 
-    // Re-attach event setelah replace
     document.getElementById('mb-form').addEventListener('submit', handleSave);
     document.getElementById('mb-form-card').scrollIntoView({ behavior: 'smooth' });
+    MB.calcModal();
   },
 
   cancelEdit() {
