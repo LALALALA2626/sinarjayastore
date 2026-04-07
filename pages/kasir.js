@@ -359,6 +359,15 @@ function _showStruk(bon, isView = false) {
           margin-bottom:10px">
           ⚠️ Bluetooth tidak tersedia. Buka via HTTPS atau gunakan localhost.
         </div>`}
+        
+        <!-- Tombol Kirim WhatsApp -->
+        <button style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+          padding:14px 16px;background:#eff6ff; border:1.5px solid #bfdbfe;border-radius:13px;
+          font-size:14px;font-weight:600;cursor:pointer; color:#1e40af;font-family:'Plus Jakarta Sans',sans-serif;
+          margin-bottom:10px"
+          onclick="KASIR._shareWA(\`${safeTxt}\`)">
+          💬 Bagikan Bon ke WhatsApp
+        </button>
 
         <button class="btn btn-primary" onclick="${isView ? 'KASIR._closeModal()' : 'KASIR._closeModal();KASIR.reset()'}">
           ${isView ? 'Tutup' : '🆕 Bon Baru'}
@@ -954,41 +963,13 @@ window.KASIR = {
     const bon = allBon.find(b => b.id === id);
     if (!bon) return;
 
-    // Baris barang — bisa edit nama, qty, harga
-    const itemRows = bon.items.map((it, idx) => `
-      <tr style="border-bottom:1px solid #f3f4f6">
-        <td style="padding:6px 4px;font-size:13px;color:var(--text);min-width:90px">${_escHtml(it.nama)}</td>
-        <td style="padding:6px 4px">
-          <input
-            class="ii edit-item-qty"
-            data-idx="${idx}"
-            type="text"
-            value="${_escHtml(String(it.qty))}"
-            inputmode="decimal"
-            style="width:52px;text-align:center;font-size:12px"
-            title="Format: 1 · 0.5 · 1/2 · 1/4"
-          >
-        </td>
-        <td style="padding:6px 4px">
-          <input
-            class="ii edit-item-harga"
-            data-idx="${idx}"
-            type="number"
-            value="${it.harga || 0}"
-            inputmode="numeric"
-            style="width:90px;text-align:right;font-size:12px"
-            oninput="KASIR._recalcEditTotal()"
-          >
-        </td>
-        <td style="padding:6px 4px;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap">
-          ${it.qty} ${it.satuan}
-        </td>
-      </tr>`).join('');
+    // Simpan ke cache untuk edit interaktif
+    window._editItemsCache = JSON.parse(JSON.stringify(bon.items));
 
     const mc = document.getElementById('modal-container');
     mc.innerHTML = `
       <div class="modal-backdrop" onclick="KASIR._closeModal()">
-        <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto">
+        <div class="modal-sheet" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto;padding-bottom:50px;">
           <div class="drag-bar"></div>
           <div class="sheet-title">✏️ Edit Bon</div>
 
@@ -1011,9 +992,9 @@ window.KASIR = {
 
           <div style="margin-bottom:6px">
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
-              letter-spacing:.06em;margin-bottom:8px">✏️ Revisi Harga / Qty Barang</div>
+              letter-spacing:.06em;margin-bottom:8px">✏️ Daftar Barang</div>
             <div style="overflow-x:auto;border-radius:10px;border:1.5px solid var(--border)">
-              <table style="width:100%;border-collapse:collapse">
+              <table style="width:100%;border-collapse:collapse;min-width:320px;">
                 <thead>
                   <tr style="background:#f9fafb">
                     <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
@@ -1023,12 +1004,18 @@ window.KASIR = {
                     <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
                       text-transform:uppercase;letter-spacing:.04em;text-align:right">Harga</th>
                     <th style="padding:7px 4px 6px;font-size:10px;font-weight:700;color:var(--muted);
-                      text-transform:uppercase;letter-spacing:.04em;text-align:right">Satuan</th>
+                      text-transform:uppercase;letter-spacing:.04em;text-align:center">Satuan</th>
+                    <th style="padding:7px 4px 6px;width:30px;"></th>
                   </tr>
                 </thead>
-                <tbody id="edit-items-body">${itemRows}</tbody>
+                <tbody id="edit-items-body"></tbody>
               </table>
             </div>
+            
+            <div style="margin-top:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="KASIR._addEditItem()" style="padding:6px 12px;font-size:12px;">+ Tambah Barang</button>
+            </div>
+
             <div style="display:flex;justify-content:space-between;align-items:center;
               margin-top:10px;padding:10px 12px;background:#f0fdf4;
               border-radius:10px;border:1.5px solid #d1fae5">
@@ -1037,26 +1024,72 @@ window.KASIR = {
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;margin-top:4px">
+          <div style="display:flex;gap:8px;margin-top:20px">
             <button class="btn btn-outline" style="flex:1" onclick="KASIR._closeModal()">Batal</button>
-            <button class="btn btn-primary" style="flex:2" onclick="KASIR._simpanEditBon(${id})">💾 Simpan</button>
+            <button class="btn btn-primary" style="flex:2" onclick="KASIR._simpanEditBon(${id})">💾 Simpan Perubahan</button>
           </div>
         </div>
       </div>`;
 
-    // Hitung total awal
+    KASIR._renderEditItemsTable();
+  },
+
+  _renderEditItemsTable() {
+    const items = window._editItemsCache || [];
+    const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
+    
+    const rows = items.map((it, idx) => `
+      <tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:6px 4px;">
+           <input type="text" class="ii edit-item-nama" value="${_escHtml(it.nama)}" placeholder="Nama" 
+             oninput="KASIR._updateEditItem(${idx}, 'nama', this.value)" style="width:100%;font-size:12px;padding:6px;min-width:100px;">
+        </td>
+        <td style="padding:6px 4px;">
+          <input type="text" class="ii edit-item-qty" value="${_escHtml(String(it.qty))}" inputmode="decimal"
+            oninput="KASIR._updateEditItem(${idx}, 'qty', this.value)" style="width:48px;text-align:center;font-size:12px;padding:6px;">
+        </td>
+        <td style="padding:6px 4px;">
+          <input type="number" class="ii edit-item-harga" value="${it.harga || 0}" inputmode="numeric"
+            oninput="KASIR._updateEditItem(${idx}, 'harga', this.value)" style="width:75px;text-align:right;font-size:12px;padding:6px;">
+        </td>
+        <td style="padding:6px 4px;">
+          <select class="ii edit-item-satuan" onchange="KASIR._updateEditItem(${idx}, 'satuan', this.value)" style="padding:6px 4px;font-size:11px;width:100%;min-width:65px;">
+            ${SATUANS.map(s => `<option value="${s}" ${it.satuan === s ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding:6px 4px;text-align:center;">
+          <button class="btn btn-danger btn-icon btn-sm" onclick="KASIR._removeEditItem(${idx})" style="padding:4px;width:24px;height:24px;">✕</button>
+        </td>
+      </tr>
+    `).join('');
+
+    const tbody = document.getElementById('edit-items-body');
+    if (tbody) tbody.innerHTML = rows;
     KASIR._recalcEditTotal();
   },
 
-  // Hitung ulang total saat harga/qty diubah di modal edit
+  _updateEditItem(idx, field, val) {
+    if (!window._editItemsCache[idx]) return;
+    if (field === 'harga') window._editItemsCache[idx][field] = parseFloat(val) || 0;
+    else window._editItemsCache[idx][field] = val;
+    if (field === 'qty' || field === 'harga') KASIR._recalcEditTotal();
+  },
+
+  _removeEditItem(idx) {
+    window._editItemsCache.splice(idx, 1);
+    KASIR._renderEditItemsTable();
+  },
+
+  _addEditItem() {
+    window._editItemsCache.push({ nama: '', qty: '1', harga: 0, satuan: 'pcs' });
+    KASIR._renderEditItemsTable();
+  },
+
   _recalcEditTotal() {
-    const qtyEls   = document.querySelectorAll('.edit-item-qty');
-    const hargaEls = document.querySelectorAll('.edit-item-harga');
     let total = 0;
-    qtyEls.forEach((qEl, i) => {
-      const q = _parseQtyText(qEl.value);
-      const h = parseFloat(hargaEls[i]?.value) || 0;
-      total += q * h;
+    (window._editItemsCache || []).forEach(it => {
+      const q = typeof it.qty === 'string' ? _parseQtyText(it.qty) : parseFloat(it.qty) || 0;
+      total += q * (parseFloat(it.harga) || 0);
     });
     const el = document.getElementById('edit-total-val');
     if (el) el.textContent = fmt(total);
@@ -1076,14 +1109,13 @@ window.KASIR = {
       return;
     }
 
-    // Kumpulkan harga & qty baru dari form
-    const qtyEls   = document.querySelectorAll('.edit-item-qty');
-    const hargaEls = document.querySelectorAll('.edit-item-harga');
-    const updatedItems = allBon[idx].items.map((it, i) => ({
-      ...it,
-      qty  : qtyEls[i]?.value   || it.qty,
-      harga: parseFloat(hargaEls[i]?.value) || it.harga,
-    }));
+    // Bersihkan yang tidak ada nama
+    const updatedItems = (window._editItemsCache || []).filter(i => i.nama && i.nama.trim() !== '');
+    if (!updatedItems.length) {
+       showToast('Barang tidak boleh kosong semua', 'error');
+       return;
+    }
+
     const totalBaru = updatedItems.reduce(
       (s, it) => s + (parseFloat(it.harga) || 0) * _parseQtyText(it.qty), 0
     );
@@ -1107,19 +1139,21 @@ window.KASIR = {
           total_harga   : totalBaru,
         }).eq('no_faktur', noFaktur);
 
-        // Update detail: harga & qty per baris (match by nama_barang)
-        for (const it of updatedItems) {
+        // Update detail: Supaya aman untuk hapus/tambah baris, kita delete lama & insert yang baru
+        await db.from('tr_penjualan_detail').delete().eq('no_faktur', noFaktur);
+        
+        await db.from('tr_penjualan_detail').insert(updatedItems.map(it => {
           const subtotal = (parseFloat(it.harga) || 0) * _parseQtyText(it.qty);
-          await db.from('tr_penjualan_detail')
-            .update({
-              harga_satuan: parseFloat(it.harga) || 0,
-              qty         : _parseQtyText(it.qty),
-              subtotal    : subtotal,
-              satuan      : it.satuan || 'pcs',
-            })
-            .eq('no_faktur', noFaktur)
-            .eq('nama_barang', it.nama);
-        }
+          return {
+            no_faktur   : noFaktur,
+            kode_barang : it.kode_barang || null,
+            nama_barang : it.nama,
+            qty         : _parseQtyText(it.qty),
+            harga_satuan: parseFloat(it.harga) || 0,
+            subtotal    : subtotal,
+            satuan      : it.satuan || 'pcs',
+          };
+        }));
       } catch (err) {
         console.warn('Gagal update Supabase:', err.message);
       }
@@ -1154,6 +1188,11 @@ window.KASIR = {
   _closeModal() {
     const mc = document.getElementById('modal-container');
     if (mc) mc.innerHTML = '';
+  },
+
+  _shareWA(text) {
+    const encoded = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
   },
 
   startScanner() {

@@ -1,6 +1,6 @@
 // pages/transaksi.js
 import { db, isConfigured } from '../supabase.js';
-import { fmt, today, showToast } from '../utils.js';
+import { fmt, today, showToast, buildStrukText } from '../utils.js';
 
 let _barangList = [];  // cache dari ms_barang
 let _items = [];  // item keranjang saat ini
@@ -85,6 +85,10 @@ window.TRX = {
   closeModal() {
     document.getElementById('modal-container').innerHTML = '';
     resetForm();
+  },
+  _shareWA(text) {
+    const encoded = encodeURIComponent(text);
+    window.open(`https://wa.me/?text=${encoded}`, '_blank');
   },
   removeItem,
   onBarangChange(id, kode) {
@@ -260,6 +264,24 @@ async function simpanPenjualan() {
 
 /* ===== SUCCESS MODAL ===== */
 function showSuccessModal(noFaktur, items, total) {
+  const strukItems = items.map(i => ({
+    nama: i.nama_barang,
+    qty: String(i.qty),
+    harga: i.harga_satuan,
+    satuan: 'pcs'
+  }));
+
+  const struktxt = buildStrukText({
+    noFaktur: noFaktur,
+    tanggal: new Date().toISOString(),
+    namaPelanggan: 'Pelanggan (Transaksi)',
+    catatan: '',
+    items: strukItems,
+    total: total,
+    metode: 'Tunai',
+  });
+  const safeTxt = struktxt.replace(/`/g, "'");
+
   const mc = document.getElementById('modal-container');
   mc.innerHTML = `
     <div class="modal-backdrop" id="trx-modal">
@@ -284,6 +306,15 @@ function showSuccessModal(noFaktur, items, total) {
             <div class="sum-total-val">${fmt(total)}</div>
           </div>
         </div>
+
+        <button style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+          padding:14px 16px;background:#eff6ff; border:1.5px solid #bfdbfe;border-radius:13px;
+          font-size:14px;font-weight:600;cursor:pointer; color:#1e40af;font-family:'Plus Jakarta Sans',sans-serif;
+          margin-bottom:10px"
+          onclick="TRX._shareWA(\`${safeTxt}\`)">
+          💬 Bagikan Bon ke WhatsApp
+        </button>
+
         <button class="btn btn-primary" onclick="TRX.closeModal()">🆕 Transaksi Baru</button>
       </div>
     </div>`;
