@@ -88,10 +88,19 @@ export function generateNoFakturLocal() {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const dateKey = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-  const storKey = `sj_ctr_${dateKey}`;
-  const counter = (parseInt(localStorage.getItem(storKey) || '0')) + 1;
-  localStorage.setItem(storKey, String(counter));
-  return `SJ-${dateKey}-${String(counter).padStart(4, '0')}`;
+  const ms4 = String(Date.now()).slice(-4);
+  const rand3 = String(Math.floor(Math.random() * 900 + 100));
+  return `SJ-${dateKey}-${ms4}-${rand3}`;
+}
+
+export function normalizeProductName(s) {
+  return String(s || '')
+    .trim()
+    .replace(/[^\w\s\-\/.()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, items, total, metode, bayar, kembali }) {

@@ -1,6 +1,6 @@
 // pages/master-barang.js
 import { db, isConfigured } from '../supabase.js';
-import { fmt, showToast, escHtml, escAttr } from '../utils.js';
+import { fmt, showToast, escHtml, escAttr, normalizeProductName, similarity } from '../utils.js';
 
 let _container = null;
 let _editMode = false;
@@ -134,7 +134,8 @@ async function loadTable() {
 async function handleSave(e) {
   e.preventDefault();
   const kode = document.getElementById('mb-kode').value.trim().toUpperCase();
-  const nama = document.getElementById('mb-nama').value.trim();
+  const namRaw = document.getElementById('mb-nama').value.trim();
+  const nama = normalizeProductName(namRaw); // Auto-normalize: Title Case, trim, clean
   const harga = parseFloat(document.getElementById('mb-harga').value) || 0;
   const hargaMasuk = parseFloat(document.getElementById('mb-harga-masuk').value) || null;
   const isiPerPack = parseFloat(document.getElementById('mb-isi').value) || null;
@@ -142,6 +143,10 @@ async function handleSave(e) {
   if (!kode || !nama || harga <= 0) {
     showToast('Lengkapi semua field dengan benar', 'error'); return;
   }
+
+  // Sync normalized name back to input
+  const namaInput = document.getElementById('mb-nama');
+  if (namaInput) namaInput.value = nama;
 
   const btn = document.querySelector('#mb-form button[type="submit"]');
   btn.disabled = true;
@@ -161,6 +166,21 @@ async function handleSave(e) {
       if (error) throw error;
       showToast(`Barang ${nama} berhasil diupdate ✅`);
     } else {
+      // Cek duplikat fuzzy > 80% sebelum insert
+      const { data: existing } = await db.from('ms_barang').select('kode_barang, nama_barang');
+      if (existing) {
+        const nearDuplicate = existing.find(b =>
+          b.kode_barang !== kode && similarity(b.nama_barang, nama) > 0.80
+        );
+        if (nearDuplicate) {
+          btn.disabled = false;
+          if (!confirm(`Produk "${nearDuplicate.nama_barang}" sudah ada dan sangat mirip dengan "${nama}".\n\nApakah ini produk yang sama? Tekan Batal jika berbeda.`)) {
+            return; // User confirmed it's the same — don't duplicate
+          }
+          btn.disabled = true;
+        }
+      }
+
       let payload = { kode_barang: kode, nama_barang: nama, harga_satuan: harga };
       if (hargaMasuk) payload.harga_masuk = hargaMasuk;
       if (isiPerPack) payload.isi_per_pack = isiPerPack;

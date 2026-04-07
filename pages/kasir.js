@@ -1,5 +1,5 @@
 // pages/kasir.js — Kasir Manual (Bon Cepat)
-import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity } from '../utils.js';
+import { fmt, fmtDateTime, showToast, buildStrukText, generateNoFakturLocal, similarity, normalizeProductName } from '../utils.js';
 import { db, isConfigured } from '../supabase.js';
 
 const SATUANS = ['pcs', 'kg', 'gr', 'bungkus', 'renceng', 'karton', 'lusin', 'pack', 'botol', 'liter', 'ikat', 'biji', 'sak', 'lbr', 'dus'];
@@ -9,6 +9,11 @@ let _itemId = 0;
 let _metode = 'Tunai';
 let _bleChar = null;
 let _masterBarang = []; // Cache ms_barang untuk autocomplete
+
+/* ===== NORMALIZE NAMA PRODUK ===== */
+function _normalizeNama(s) {
+  return normalizeProductName(s);
+}
 
 /* ===== GENERATE KODE BARANG ===== */
 function _generateKode(nama) {
@@ -77,7 +82,8 @@ export async function renderKasir(container) {
              <button class="btn btn-secondary btn-sm" onclick="KASIR.addItem()">+ Tambah</button>
           </div>
         </div>
-        <div class="card glass-card relative" style="padding:12px 14px">
+        <div class="card glass-card" style="padding:12px 14px;position:relative">
+          <div id="k-autocomplete-dropdown" class="glass-dropdown"></div>
           <div id="k-col-labels" style="display:none;grid-template-columns:1fr 72px 52px 66px 30px;gap:5px;margin-bottom:6px">
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Nama barang</div>
             <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:right">Harga</div>
@@ -160,7 +166,10 @@ export async function renderKasir(container) {
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           <div class="sec-lbl" style="margin:0">Riwayat Bon</div>
-          <button class="btn btn-danger btn-sm" onclick="KASIR.hapusBonHariIni()" style="font-size:12px;padding:6px 12px">🗑️ Hapus Hari Ini</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-secondary btn-sm" onclick="KASIR.cetakUlangTerakhir()" style="font-size:12px;padding:6px 12px">🔁 Terakhir</button>
+            <button class="btn btn-danger btn-sm" onclick="KASIR.hapusBonHariIni()" style="font-size:12px;padding:6px 12px">🗑️ Hapus</button>
+          </div>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <input id="k-search" type="text" placeholder="Cari nama pelanggan..."
@@ -245,15 +254,21 @@ function _renderProductCacheChips() {
   if (!cache.length) { wrap.style.display = 'none'; return; }
 
   wrap.style.display = 'block';
-  el.innerHTML = cache.slice(0, 24).map((p, idx) => `
-    <button style="padding:5px 12px;border-radius:20px;border:1.5px solid #d1fae5;
-      background:#f0fdf4;font-size:12px;font-weight:600;cursor:pointer;
-      color:#065f46;font-family:'Plus Jakarta Sans',sans-serif;
-      display:inline-flex;align-items:center;gap:6px;white-space:nowrap"
+  el.innerHTML = cache.slice(0, 24).map((p, idx) => {
+    const isFav = (p.hitungPakai || 0) > 5;
+    return `<button style="padding:5px 12px;border-radius:20px;
+      border:1.5px solid ${isFav ? '#fcd34d' : '#d1fae5'};
+      background:${isFav ? '#fffbeb' : '#f0fdf4'};
+      font-size:12px;font-weight:600;cursor:pointer;
+      color:${isFav ? '#92400e' : '#065f46'};
+      font-family:'Plus Jakarta Sans',sans-serif;
+      display:inline-flex;align-items:center;gap:5px;white-space:nowrap"
       onclick="KASIR.addFromCache(${idx})">
+      ${isFav ? '<span style="font-size:10px">⭐</span>' : ''}
       ${_escHtml(p.nama)}
-      <span style="font-weight:400;opacity:.7;font-size:11px">${fmt(p.harga)}</span>
-    </button>`).join('');
+      <span style="font-weight:400;opacity:.65;font-size:11px">${fmt(p.harga)}</span>
+    </button>`;
+  }).join('');
 }
 
 /* ===== RENDER SUMMARY ===== */
@@ -458,18 +473,24 @@ function _saveProductsToCache(items) {
   items.forEach(i => {
     if (!i.nama) return;
     const key = i.nama.trim().toLowerCase();
+    const existing = cacheMap[key];
     cacheMap[key] = {
       nama: i.nama.trim(),
       harga: i.harga || 0,
       satuan: i.satuan || 'pcs',
+      kode_barang: i.kode_barang || (existing ? existing.kode_barang : null),
+      hitungPakai: (existing ? (existing.hitungPakai || 0) : 0) + 1,
       lastUsed: new Date().toISOString(),
     };
   });
 
-  // Urutkan terbaru di depan, simpan max 100
+  // Urutkan: paling sering dipakai di depan, tiebreak lastUsed. Simpan max 150
   const sorted = Object.values(cacheMap)
-    .sort((a, b) => new Date(b.lastUsed) - new Date(a.lastUsed))
-    .slice(0, 100);
+    .sort((a, b) => {
+      const diff = (b.hitungPakai || 0) - (a.hitungPakai || 0);
+      return diff !== 0 ? diff : new Date(b.lastUsed) - new Date(a.lastUsed);
+    })
+    .slice(0, 150);
   localStorage.setItem(_CACHE_KEY, JSON.stringify(sorted));
 }
 
@@ -537,58 +558,100 @@ window.KASIR = {
   },
 
   searchProduct(inputEl, id) {
-    const val = inputEl.value.toLowerCase().trim();
+    const val = inputEl.value.trim();
+    if (!val) { KASIR.hideDropdown(); return; }
+    const valLower = val.toLowerCase();
+
     const dropdown = document.getElementById('k-autocomplete-dropdown');
 
-    if (!val || _masterBarang.length === 0) {
-      if (dropdown) dropdown.style.display = 'none';
-      return;
+    // Build candidate list from BOTH sources
+    const cache = _loadProductCache();
+    const masterNameSet = new Set(_masterBarang.map(b => b.nama_barang.toLowerCase()));
+    const cacheMap = {};
+    cache.forEach(p => { cacheMap[p.nama.toLowerCase()] = p; });
+
+    const candidates = [];
+    // Master source
+    _masterBarang.forEach(b => {
+      const cp = cacheMap[b.nama_barang.toLowerCase()];
+      candidates.push({
+        kode: b.kode_barang,
+        nama: b.nama_barang,
+        harga: cp ? cp.harga : b.harga_satuan, // prefer cache price (last used)
+        satuan: cp ? (cp.satuan || 'pcs') : 'pcs',
+        hitungPakai: cp ? (cp.hitungPakai || 0) : 0,
+        isMaster: true,
+      });
+    });
+    // Cache-only (not in master)
+    cache.forEach(p => {
+      if (!masterNameSet.has(p.nama.toLowerCase())) {
+        candidates.push({
+          kode: p.kode_barang || null,
+          nama: p.nama,
+          harga: p.harga,
+          satuan: p.satuan || 'pcs',
+          hitungPakai: p.hitungPakai || 0,
+          isMaster: false,
+        });
+      }
+    });
+
+    // Score each candidate
+    function score(c) {
+      const n = c.nama.toLowerCase();
+      const abbrev = n.split(/\s+/).filter(Boolean).map(w => w[0]).join('');
+      if (n === valLower) return 100;
+      if (abbrev === valLower) return 82;
+      if (abbrev.startsWith(valLower)) return 72;
+      if (n.startsWith(valLower)) return 68;
+      if (n.includes(valLower)) return 60;
+      const sim = similarity(c.nama, val);
+      if (sim > 0.6) return Math.round(sim * 55);
+      return 0;
     }
 
-    // Fuzzy matching:
-    // 1. Termasuk substring
-    // 2. Termasuk singkatan huruf pertama (GF -> Gudang Garam Filter)
-    const results = _masterBarang.filter(b => {
-      const nama = b.nama_barang.toLowerCase();
-      if (nama.includes(val)) return true;
-      const abbrev = nama.split(/\s+/).map(w => w[0]).join('');
-      if (abbrev.includes(val)) return true;
-      return false;
-    }).slice(0, 8); // MAX 8 results
+    const results = candidates
+      .map(c => ({ ...c, _score: score(c) }))
+      .filter(c => c._score > 0)
+      .sort((a, b) => b._score !== a._score ? b._score - a._score : b.hitungPakai - a.hitungPakai)
+      .slice(0, 8);
 
-    if (results.length === 0) {
-      dropdown.style.display = 'none';
-      return;
-    }
+    if (!results.length) { KASIR.hideDropdown(); return; }
 
-    // Position dropdown below the input
     const rect = inputEl.getBoundingClientRect();
-    const listRect = document.getElementById('k-items-list').getBoundingClientRect();
-
-    dropdown.style.top = (rect.bottom - listRect.top + 5) + 'px';
-    dropdown.style.left = (rect.left - listRect.left) + 'px';
+    const cardEl = dropdown.parentElement;
+    const cardRect = cardEl ? cardEl.getBoundingClientRect() : { top: 0, left: 0 };
+    dropdown.style.top  = (rect.bottom - cardRect.top + 5) + 'px';
+    dropdown.style.left = (rect.left - cardRect.left) + 'px';
     dropdown.style.width = Math.max(rect.width, 240) + 'px';
     dropdown.style.display = 'block';
 
-    dropdown.innerHTML = results.map(b => `
-      <div class="dd-item" onclick="KASIR.selectProduct(${id}, '${_escHtml(b.kode_barang)}', '${_escHtml(b.nama_barang)}', ${b.harga_satuan})">
-        <div class="dd-nama">${_escHtml(b.nama_barang)}</div>
-        <div class="dd-harga">${fmt(b.harga_satuan)}</div>
-      </div>
-    `).join('');
+    dropdown.innerHTML = results.map(b => {
+      const isFav = b.hitungPakai > 5;
+      return `
+      <div class="dd-item" onclick="KASIR.selectProduct(${id},'${_escAttr(b.kode||'')}','${_escAttr(b.nama)}',${b.harga},'${_escAttr(b.satuan||'pcs')}')">
+        <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex:1;min-width:0">
+          <div class="dd-nama" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_escHtml(b.nama)}</div>
+          ${b.isMaster ? '<span class="badge badge-master" style="font-size:9px;padding:1px 5px;flex-shrink:0">Master</span>' : ''}
+          ${isFav ? '<span class="badge badge-fav" style="font-size:9px;padding:1px 5px;flex-shrink:0">⭐ Favorit</span>' : ''}
+        </div>
+        <div class="dd-harga" style="flex-shrink:0;margin-left:8px">${fmt(b.harga)}</div>
+      </div>`;
+    }).join('');
   },
 
-  selectProduct(id, kode, nama, harga) {
+  selectProduct(id, kode, nama, harga, satuan) {
     const item = _items.find(i => i.id === id);
     if (!item) return;
-    item.kode_barang = kode;
+    item.kode_barang = kode || null;
     item.nama = nama;
     item.harga = harga;
+    if (satuan) item.satuan = satuan;
 
     KASIR.hideDropdown();
     _renderItems();
 
-    // Focus onto the qty element or trigger re-render
     setTimeout(() => {
       const row = document.querySelector(`[data-item-id="${id}"]`);
       if (row) {
@@ -826,7 +889,7 @@ window.KASIR = {
 
   async _prosesSimpanBon(total, nama, catatan, valid, bayar, kembali) {
     const totalQty = valid.reduce((s, i) => s + _parseQtyText(i.qty), 0);
-    const noFaktur = generateNoFakturLocal();
+    let noFaktur = generateNoFakturLocal();
     const waktu = new Date().toISOString();
     const tanggal = waktu.slice(0, 10);
 
@@ -843,62 +906,74 @@ window.KASIR = {
 
     if (isConfigured && db) {
       try {
-        // 1. Simpan header bon — termasuk nama_pelanggan, catatan, metode
-        let { error: e1 } = await db.from('tr_penjualan').insert({
-          no_faktur: noFaktur,
-          tanggal: tanggal,
-          total_harga: total,
-          total_qty: totalQty,
-          nama_pelanggan: nama,
-          catatan: catatan || null,
-          metode: _metode,
-        });
-
-        if (e1 && e1.message && e1.message.includes('does not exist')) {
-          showToast('Catatan: Kolom metode/pelanggan baru belum di-migrasi ke DB, menyimpan format lama...', 'warning');
-          const { error: err1 } = await db.from('tr_penjualan').insert({
+        // 1. Simpan header bon — retry max 3x jika duplicate key (23505)
+        let e1 = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            await new Promise(r => setTimeout(r, 100));
+            noFaktur = generateNoFakturLocal();
+          }
+          const headerPayload = {
             no_faktur: noFaktur,
             tanggal: tanggal,
             total_harga: total,
-            total_qty: totalQty
-          });
-          e1 = err1;
+            total_qty: totalQty,
+            nama_pelanggan: nama,
+            catatan: catatan || null,
+            metode: _metode,
+          };
+          const { error } = await db.from('tr_penjualan').insert(headerPayload);
+          if (!error) { e1 = null; break; }
+          if (error.code === '23505') { e1 = error; continue; } // duplicate — retry
+          if (error.message && error.message.includes('does not exist')) {
+            // Schema fallback
+            const { error: err1 } = await db.from('tr_penjualan').insert({
+              no_faktur: noFaktur, tanggal, total_harga: total, total_qty: totalQty
+            });
+            e1 = err1; break;
+          }
+          e1 = error; break;
+        }
+
+        // Update noFaktur in localStorage if it changed on retry
+        if (bon.noFaktur !== noFaktur) {
+          const stored = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+          const idx = stored.findIndex(b => b.noFaktur === bon.noFaktur);
+          if (idx >= 0) { stored[idx].noFaktur = noFaktur; localStorage.setItem('sj_bon', JSON.stringify(stored)); }
+          bon.noFaktur = noFaktur;
         }
 
         if (e1) throw e1;
 
-        // 2. Inject produk baru ke ms_barang jika diketik manual & belum ada kode
+        // 2. Smart sync ke ms_barang — hanya masuk jika benar-benar baru (no fuzzy match > 80%)
         for (const i of valid) {
           if (!i.kode_barang) {
             const typedVal = i.nama.toLowerCase().replace(/\s+/g, '');
-            const matchCache = _masterBarang.find(mb => {
+            const matchMaster = _masterBarang.find(mb => {
               const lowerMB = mb.nama_barang.toLowerCase();
-              const exact = lowerMB === i.nama.toLowerCase();
-              if (exact) return true;
-
-              // Fuzzy Similarity Treshold 65% (Diturunkan agar lebih luwes mendeteksi typo berantakan)
-              if (similarity(mb.nama_barang, i.nama) > 0.65) return true;
-
-              // Cek Singkatan Huruf Awal (misal: "GF" untuk "Gudang Garam Filter")
+              if (lowerMB === i.nama.toLowerCase()) return true;
+              if (similarity(mb.nama_barang, i.nama) > 0.80) return true;
               const abbrev = lowerMB.split(/\s+/).filter(Boolean).map(w => w[0]).join('');
               if (abbrev === i.nama.toLowerCase() || abbrev === typedVal) return true;
-
               return false;
             });
-            if (matchCache) {
-              i.kode_barang = matchCache.kode_barang;
-              // Set namabaarang dari cache agar tersinkronisasi dan tidak typo (GudangGaram => Gudang Garam Filter)
-              i.nama = matchCache.nama_barang;
+            if (matchMaster) {
+              if (i.nama.toLowerCase() !== matchMaster.nama_barang.toLowerCase()) {
+                showToast(`Produk dikenali sebagai "${matchMaster.nama_barang}"`, 'info');
+              }
+              i.kode_barang = matchMaster.kode_barang;
+              i.nama = matchMaster.nama_barang;
             } else {
-              const newKode = _generateKode(i.nama);
+              const normalizedName = _normalizeNama(i.nama);
+              i.nama = normalizedName;
+              const newKode = _generateKode(normalizedName);
               i.kode_barang = newKode;
               await db.from('ms_barang').insert({
                 kode_barang: newKode,
-                nama_barang: i.nama,
+                nama_barang: normalizedName,
                 harga_satuan: i.harga
               });
-              // Tambahkan ke lokal masterList agar autocomplete langsung ada
-              _masterBarang.push({ kode_barang: newKode, nama_barang: i.nama, harga_satuan: i.harga });
+              _masterBarang.push({ kode_barang: newKode, nama_barang: normalizedName, harga_satuan: i.harga });
             }
           }
         }
@@ -955,6 +1030,7 @@ window.KASIR = {
 
     _saveProductsToCache(valid);
     _renderProductCacheChips();
+    _showConfetti();
     _showStruk(bon);
     _renderRiwayat();
   },
@@ -1237,6 +1313,13 @@ window.KASIR = {
     _renderRiwayat();
   },
 
+  cetakUlangTerakhir() {
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    if (!allBon.length) { showToast('Belum ada bon tersimpan', 'info'); return; }
+    const lastBon = allBon[allBon.length - 1];
+    _showStruk(lastBon, true);
+  },
+
   _closeModal() {
     const mc = document.getElementById('modal-container');
     if (mc) mc.innerHTML = '';
@@ -1468,6 +1551,25 @@ if (!document.getElementById('kasir-styles')) {
 /* ===== LOCAL HELPERS ===== */
 function _escHtml(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function _escAttr(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function _showConfetti() {
+  const wrap = document.createElement('div');
+  wrap.className = 'confetti-wrap';
+  const colors = ['#10b981','#f59e0b','#3b82f6','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+  for (let i = 0; i < 48; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    const size = 6 + Math.random() * 7;
+    p.style.cssText = `left:${Math.random()*100}%;background:${colors[Math.floor(Math.random()*colors.length)]};animation-delay:${Math.random()*0.4}s;animation-duration:${0.9+Math.random()*0.7}s;width:${size}px;height:${size}px;border-radius:${Math.random()>.5?'50%':'3px'};`;
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 2200);
 }
 
 /**

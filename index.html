@@ -9,6 +9,13 @@
   <meta http-equiv="Expires" content="0">
   <!-- Loader konfigurasi: ambil dari Netlify Function (production) atau env.js (local dev) -->
   <script>
+    // Init theme ASAP to prevent flash
+    (function() {
+      const t = localStorage.getItem('sj_theme') || 'light';
+      if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
+  <script>
     window.__configReady = (async function () {
       // Cek apakah sudah di-inject oleh env.js (local dev)
       const alreadySet =
@@ -73,6 +80,9 @@
           <div class="store-name">Sinar Jaya</div>
           <div class="store-sub" id="page-subtitle">Sembako &amp; Kelontong</div>
         </div>
+        <button class="theme-toggle" id="theme-toggle-btn" onclick="window.toggleTheme && window.toggleTheme()" title="Ganti tema">
+          <span id="theme-icon">🌙</span>
+        </button>
         <div class="date-chip" id="tgl-chip">—</div>
       </div>
     </header>

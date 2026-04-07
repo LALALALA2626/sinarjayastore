@@ -1,8 +1,12 @@
 // pages/dashboard.js
 import { db, isConfigured } from '../supabase.js';
-import { fmt, today, fmtDate, showToast } from '../utils.js';
+import { fmt, today, fmtDate, showToast, buildStrukText } from '../utils.js';
 
-export async function renderDashboard(container) {
+let _dashPeriod = 'today'; // 'today' | 'week' | 'month'
+
+export async function renderDashboard(container, period) {
+  if (period) _dashPeriod = period;
+
   if (!isConfigured) {
     container.innerHTML = notConfiguredHTML() + dashboardSkeletonHTML();
     return;
@@ -13,18 +17,35 @@ export async function renderDashboard(container) {
   try {
     const todayStr = today();
 
-    const d = new Date();
-    d.setDate(d.getDate() - 6);
-    const last7Str = d.toISOString().slice(0, 10);
+    // Compute date range based on period
+    let fromStr;
+    let periodLabel;
+    if (_dashPeriod === 'month') {
+      fromStr = todayStr.slice(0, 7) + '-01';
+      periodLabel = 'Bulan Ini';
+    } else if (_dashPeriod === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+      fromStr = d.toISOString().slice(0, 10);
+      periodLabel = 'Minggu Ini';
+    } else {
+      fromStr = todayStr;
+      periodLabel = 'Hari Ini';
+    }
+
+    const chartFrom = new Date();
+    chartFrom.setDate(chartFrom.getDate() - 6);
+    const chartFromStr = chartFrom.toISOString().slice(0, 10);
 
     const { data: penjualan, error: e1 } = await db
       .from('tr_penjualan')
       .select('total_harga, total_qty, no_faktur, tanggal')
-      .gte('tanggal', last7Str)
+      .gte('tanggal', _dashPeriod === 'today' ? chartFromStr : fromStr)
       .order('created_at', { ascending: false });
     if (e1) throw e1;
 
-    const hariIni = penjualan.filter(p => p.tanggal === todayStr);
+    const periodData = penjualan.filter(p => p.tanggal >= fromStr && p.tanggal <= todayStr);
+    const chartData  = penjualan.filter(p => p.tanggal >= chartFromStr);
 
     const { data: hutangData, error: e2 } = await db
       .from('tr_hutang')
@@ -33,18 +54,51 @@ export async function renderDashboard(container) {
       .order('created_at', { ascending: false });
     if (e2) throw e2;
 
-    const totalHarga = hariIni.reduce((s, r) => s + Number(r.total_harga), 0);
-    const totalQty = hariIni.reduce((s, r) => s + Number(r.total_qty), 0);
-    const jmlFaktur = hariIni.length;
+    const totalHarga = periodData.reduce((s, r) => s + Number(r.total_harga), 0);
+    const totalQty   = periodData.reduce((s, r) => s + Number(r.total_qty), 0);
+    const jmlFaktur  = periodData.length;
     const totalHutang = (hutangData || []).reduce((s, h) => s + Number(h.jumlah), 0);
+
+    // Overdue hutang (> 7 hari)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0, 10);
+    const overdueCount = (hutangData || []).filter(h => h.tanggal && h.tanggal < sevenDaysAgoStr).length;
+
+    // Average per day
+    const dayCount = _dashPeriod === 'today' ? 1
+      : _dashPeriod === 'week' ? Math.max(1, (new Date(todayStr) - new Date(fromStr)) / 86400000 + 1)
+      : Math.max(1, new Date(todayStr).getDate());
+    const avgPerDay = jmlFaktur / dayCount;
+
+    // Top produk dari cache
+    let topProduk = null;
+    try {
+      const cache = JSON.parse(localStorage.getItem('sj_produk_cache') || '[]');
+      if (cache.length) topProduk = cache.sort((a,b) => (b.hitungPakai||0) - (a.hitungPakai||0))[0];
+    } catch {}
+
+    // Last bon for cetak ulang
+    const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+    const lastBon = allBon.length ? allBon[allBon.length - 1] : null;
+
+    // hariIni alias for chart (still needed)
+    const hariIni = penjualan.filter(p => p.tanggal === todayStr);
 
     container.innerHTML = `
       <div class="gap-12">
 
+        <!-- Period Toggle -->
+        <div class="period-pills">
+          <button class="period-pill${_dashPeriod==='today'?' active':''}" onclick="DASHBOARD.setPeriod('today')">Hari Ini</button>
+          <button class="period-pill${_dashPeriod==='week'?' active':''}"  onclick="DASHBOARD.setPeriod('week')">Minggu Ini</button>
+          <button class="period-pill${_dashPeriod==='month'?' active':''}" onclick="DASHBOARD.setPeriod('month')">Bulan Ini</button>
+        </div>
+
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-icon">💰</div>
-            <div class="stat-lbl">Penjualan hari ini</div>
+            <div class="stat-lbl">Penjualan ${periodLabel}</div>
             <div class="stat-val">${fmt(totalHarga)}</div>
           </div>
           <div class="stat-card">
@@ -55,18 +109,34 @@ export async function renderDashboard(container) {
         </div>
 
         <div class="card">
-          <div class="sec-lbl">Ringkasan — ${fmtDate(todayStr)}</div>
+          <div class="sec-lbl">Ringkasan — ${periodLabel} · ${fmtDate(todayStr)}</div>
           <div class="stats-grid" style="margin-bottom:0">
             <div style="text-align:center">
               <div style="font-size:28px;font-weight:800;color:var(--green)">${jmlFaktur}</div>
               <div style="font-size:12px;color:var(--muted);margin-top:2px">Transaksi</div>
             </div>
             <div style="text-align:center">
-              <div style="font-size:28px;font-weight:800;color:var(--green)">${totalQty.toLocaleString('id-ID')}</div>
-              <div style="font-size:12px;color:var(--muted);margin-top:2px">Total Qty</div>
+              <div style="font-size:28px;font-weight:800;color:var(--green)">${Number(avgPerDay.toFixed(1)).toLocaleString('id-ID')}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">Rata-rata/hari</div>
             </div>
           </div>
+          ${topProduk ? `<div style="margin-top:10px;padding:8px 10px;background:var(--green-light);border-radius:10px;font-size:12px;color:var(--green-dark)">
+            ⭐ Produk terlaris: <b>${_esc(topProduk.nama)}</b> (${topProduk.hitungPakai||0}x)</div>` : ''}
         </div>
+
+        ${lastBon ? `<div class="card" style="padding:12px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--muted)">Bon Terakhir</div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px">${_esc(lastBon.namaPelanggan)}</div>
+              <div style="font-size:11px;color:var(--muted);font-family:monospace">${lastBon.noFaktur}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:16px;font-weight:800;color:var(--green)">${fmt(lastBon.total)}</div>
+              <button class="btn btn-secondary btn-sm" style="margin-top:4px;font-size:11px" onclick="DASHBOARD.cetakUlangTerakhir()">🔁 Cetak Ulang</button>
+            </div>
+          </div>
+        </div>` : ''}
 
         <div class="card">
           <div class="sec-lbl">Grafik Tren Penjualan (7 Hari)</div>
@@ -130,7 +200,7 @@ export async function renderDashboard(container) {
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div>
                   <div style="font-size:13px;font-weight:700;color:#991b1b">Total Piutang</div>
-                  <div style="font-size:11px;color:#dc2626;margin-top:2px">${hutangData.length} pelanggan belum lunas</div>
+                  <div style="font-size:11px;color:#dc2626;margin-top:2px">${hutangData.length} pelanggan belum lunas${overdueCount > 0 ? ` &bull; <b>${overdueCount} lewat 7 hari ⚠️</b>` : ''}</div>
                 </div>
                 <div style="font-size:22px;font-weight:800;color:#dc2626">${fmt(totalHutang)}</div>
               </div>
@@ -180,7 +250,7 @@ export async function renderDashboard(container) {
         past.setDate(past.getDate() - i);
         agg[past.toISOString().slice(0, 10)] = 0;
       }
-      for (let p of penjualan) {
+      for (let p of chartData) {
         if (agg[p.tanggal] !== undefined) agg[p.tanggal] += Number(p.total_harga);
       }
       const labels = Object.keys(agg).map(d => {
@@ -219,6 +289,38 @@ export async function renderDashboard(container) {
 
 function _initDashboardGlobal(container) {
   window.DASHBOARD = {
+    async setPeriod(p) {
+      await renderDashboard(container, p);
+    },
+
+    cetakUlangTerakhir() {
+      const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');
+      if (!allBon.length) { showToast('Belum ada bon tersimpan', 'info'); return; }
+      const bon = allBon[allBon.length - 1];
+      const struktxt = buildStrukText({
+        noFaktur: bon.noFaktur, tanggal: bon.waktu,
+        namaPelanggan: bon.namaPelanggan, catatan: bon.catatan,
+        items: bon.items, total: bon.total, metode: bon.metode,
+        bayar: bon.bayar, kembali: bon.kembali,
+      });
+      const safeTxt = struktxt.replace(/`/g, "'");
+      const mc = document.getElementById('modal-container');
+      mc.innerHTML = `
+        <div class="modal-backdrop" onclick="this.parentElement.innerHTML=''">
+          <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="drag-bar"></div>
+            <div class="sheet-title">🔁 Cetak Ulang Bon Terakhir</div>
+            <div style="text-align:center;overflow-x:auto;margin-bottom:14px">
+              <div style="display:inline-block;font-family:'Courier New',monospace;background:#fff;border-radius:10px;padding:18px 16px;font-size:13px;line-height:1.8;color:#1a1a1a;border:1px solid #e5e7eb">
+                <div style="white-space:pre;text-align:left">${struktxt}</div>
+              </div>
+            </div>
+            <button class="btn btn-secondary" style="margin-bottom:8px" onclick="window.open('https://wa.me/?text='+encodeURIComponent(\`${safeTxt}\`),'_blank')">💬 Bagikan ke WhatsApp</button>
+            <button class="btn btn-outline" onclick="document.getElementById('modal-container').innerHTML=''">Tutup</button>
+          </div>
+        </div>`;
+    },
+
     async resetHariIni() {
       const todayKey = new Date().toISOString().slice(0, 10);
       const allBon = JSON.parse(localStorage.getItem('sj_bon') || '[]');

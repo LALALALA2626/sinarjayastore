@@ -65,6 +65,26 @@ async function navigate() {
 
 window.navigateTo = (page) => { window.location.hash = '#' + page; };
 
+window.toggleTheme = function() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  if (newTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+  localStorage.setItem('sj_theme', newTheme);
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+};
+
+// Sync icon with saved theme
+(function() {
+  const t = localStorage.getItem('sj_theme') || 'light';
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.textContent = t === 'dark' ? '☀️' : '🌙';
+})();
+
 const d = new Date();
 const chip = document.getElementById('tgl-chip');
 if (chip) chip.textContent = d.toLocaleDateString('id-ID', {
