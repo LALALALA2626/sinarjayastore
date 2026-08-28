@@ -57,7 +57,9 @@ async function printBT(struktText) {
 ```
 ================================
       TOKO SINAR JAYA
-  Sembako & Kelontong Bandung
+    Sembako & Kelontong
+    Kp. Sadang No. 26
+      RT. 04 RW. 04
 ================================
 No Faktur: SJ-20260404-0001
 Tgl      : 4 April 2026 08:30

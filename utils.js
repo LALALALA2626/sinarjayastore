@@ -226,7 +226,8 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
     EQ,
     center('TOKO SINAR JAYA'),
     center('Sembako & Kelontong'),
-    center('Kota Bandung'),
+    center('Kp. Sadang No. 26'),
+    center('RT. 04 RW. 04'),
     EQ,
     noLine,
     tglLine,
@@ -241,6 +242,8 @@ export function buildStrukText({ noFaktur, tanggal, namaPelanggan, catatan, item
     EQ,
     center('Terima kasih atas'),
     center('kepercayaan Anda!'),
+    '',
+    center('BRI 215501001025569'),
     EQ,
   ].join('\n');
 }
